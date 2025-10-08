@@ -305,10 +305,11 @@
                                 <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
                                     <h2 style="font-size: 16px;">Post-processing</h2>
                                     <div class="editor-actions" style="display:flex; align-items:center; gap:8px;">
-                                        <select id="attacker-add-step" class="form-control form-control--sm" aria-label="Add step">
+                            <select id="attacker-add-step" class="form-control form-control--sm" aria-label="Add step">
                                             <option value="AddSymbols">Automatic symbols</option>
                                             <option value="ElitePromotion">Elite promotion</option>
                                             <option value="SwitchSymbols">Switch symbols</option>
+                                <option value="CombatSwitch">Combat switch</option>
                                         </select>
                                         <button class="btn btn--primary btn--sm" id="attacker-add-step-btn">Add</button>
                                     </div>
@@ -391,6 +392,7 @@
                                             <option value="AddSymbols">Automatic symbols</option>
                                             <option value="ElitePromotion">Elite promotion</option>
                                             <option value="SwitchSymbols">Switch symbols</option>
+                                            <option value="CombatSwitch">Combat switch</option>
                                         </select>
                                         <button class="btn btn--primary btn--sm" id="defender-add-step-btn">Add</button>
                                     </div>
@@ -447,126 +449,7 @@
                     <p class="faces-description">Complete reference showing every face of every die with exact symbol compositions</p>
                     
                     <div class="dice-face-grid">
-                        <div class="die-reference" data-color="Red">
-                            <div class="die-header">
-                                <div class="dice-icon red-die"></div>
-                                <div class="die-info">
-                                    <h3>Red Attack Die</h3>
-                                    <p>High reliability attack die</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: ⚔️ Success</div>
-                                <div class="face-item">Face 2: ⚔️ Success</div>
-                                <div class="face-item">Face 3: ⚔️ Success</div>
-                                <div class="face-item">Face 4: ⚔️ Success</div>
-                                <div class="face-item">Face 5: ⚔️ Success</div>
-                                <div class="face-item">Face 6: ⚔️⚔️ Double Success</div>
-                                <div class="face-item">Face 7: ⚔️ Success + ⚡ Special</div>
-                                <div class="face-item">Face 8: ⭕ Hollow Success</div>
-                            </div>
-                        </div>
-
-                        <div class="die-reference" data-color="Orange">
-                            <div class="die-header">
-                                <div class="dice-icon orange-die">⚔️</div>
-                                <div class="die-info">
-                                    <h3>Orange Attack Die</h3>
-                                    <p>Balanced attack with specials</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: ⚔️ Success</div>
-                                <div class="face-item">Face 2: ⚔️ Success</div>
-                                <div class="face-item">Face 3: ⚔️ Success</div>
-                                <div class="face-item">Face 4: ⚔️ Success</div>
-                                <div class="face-item">Face 5: ⚔️ Success + ⚡ Special</div>
-                                <div class="face-item">Face 6: ⚡ Special</div>
-                                <div class="face-item">Face 7: ⚡ Special + ⭕ Hollow Special</div>
-                                <div class="face-item">Face 8: ⭕ Hollow Success + ⭕ Hollow Special</div>
-                            </div>
-                        </div>
-
-                        <div class="die-reference" data-color="Yellow">
-                            <div class="die-header">
-                                <div class="dice-icon yellow-die">⚡</div>
-                                <div class="die-info">
-                                    <h3>Yellow Attack Die</h3>
-                                    <p>Special-focused ability die</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: ⚔️ Success + ⚡ Special</div>
-                                <div class="face-item">Face 2: ⚔️ Success + ⚡ Special</div>
-                                <div class="face-item">Face 3: ⚔️ Success + ⚡ Special</div>
-                                <div class="face-item">Face 4: ⚡ Special</div>
-                                <div class="face-item">Face 5: ⚡ Special</div>
-                                <div class="face-item">Face 6: ⚡ Special + ⭕ Hollow Success</div>
-                                <div class="face-item">Face 7: ⭕ Hollow Success + ⭕ Hollow Special</div>
-                                <div class="face-item">Face 8: ⚡ Special</div>
-                            </div>
-                        </div>
-
-                        <div class="die-reference" data-color="Green">
-                            <div class="die-header">
-                                <div class="dice-icon green-die">🛡️</div>
-                                <div class="die-info">
-                                    <h3>Green Defense Die</h3>
-                                    <p>High reliability defense die</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: 🛡️ Block</div>
-                                <div class="face-item">Face 2: 🛡️ Block</div>
-                                <div class="face-item">Face 3: 🛡️ Block</div>
-                                <div class="face-item">Face 4: 🛡️ Block</div>
-                                <div class="face-item">Face 5: 🛡️ Block</div>
-                                <div class="face-item">Face 6: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 7: 🛡️🛡️ Double Block + ⚡ Special</div>
-                                <div class="face-item">Face 8: ⭕ Hollow Block + ⭕ Hollow Special</div>
-                            </div>
-                        </div>
-
-                        <div class="die-reference" data-color="Blue">
-                            <div class="die-header">
-                                <div class="dice-icon blue-die">🛡️</div>
-                                <div class="die-info">
-                                    <h3>Blue Defense Die</h3>
-                                    <p>Balanced defense with specials</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 2: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 3: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 4: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 5: ⚡ Special</div>
-                                <div class="face-item">Face 6: ⚡ Special</div>
-                                <div class="face-item">Face 7: ⭕ Hollow Block + ⭕ Hollow Special</div>
-                                <div class="face-item">Face 8: ⭕ Hollow Special</div>
-                            </div>
-                        </div>
-
-                        <div class="die-reference" data-color="Black">
-                            <div class="die-header">
-                                <div class="dice-icon black-die">⚡</div>
-                                <div class="die-info">
-                                    <h3>Black Defense Die</h3>
-                                    <p>Special-focused defense die</p>
-                                </div>
-                            </div>
-                            <div class="face-list">
-                                <div class="face-item">Face 1: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 2: 🛡️ Block + ⚡ Special</div>
-                                <div class="face-item">Face 3: ⚡ Special</div>
-                                <div class="face-item">Face 4: ⚡ Special</div>
-                                <div class="face-item">Face 5: ⚡ Special</div>
-                                <div class="face-item">Face 6: ⚡ Special + ⭕ Hollow Block</div>
-                                <div class="face-item">Face 7: ⭕ Hollow Block + ⭕ Hollow Special</div>
-                                <div class="face-item">Face 8: ⚡ Special</div>
-                            </div>
-                        </div>
-                    </div>
+                        <div class="dice-face-grid"></div>
                 </div>
             </div>
         </div>

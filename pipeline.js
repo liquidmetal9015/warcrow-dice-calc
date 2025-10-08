@@ -8,6 +8,17 @@ export class Pipeline {
     constructor(steps = []) { this.steps = steps; }
     applyPre(state, ctx) { for (const s of this.steps) { if (s.enabled && typeof s.applyPre === 'function') s.applyPre(state, ctx); } }
     applyPost(state) { for (const s of this.steps) { if (s.enabled && typeof s.applyPost === 'function') s.applyPost(state); } }
+    applyCombat(selfAggregate, opponentAggregate, role) {
+        for (const s of this.steps) {
+            if (s.enabled && typeof s.applyCombat === 'function') s.applyCombat(selfAggregate, opponentAggregate, role);
+        }
+        // Clamp to non-negative after all steps
+        const clampKeys = ['hits','blocks','specials','hollowHits','hollowBlocks','hollowSpecials'];
+        for (const k of clampKeys) {
+            if (selfAggregate[k] != null) selfAggregate[k] = Math.max(0, selfAggregate[k] | 0);
+            if (opponentAggregate[k] != null) opponentAggregate[k] = Math.max(0, opponentAggregate[k] | 0);
+        }
+    }
 }
 
 export class ElitePromotionStep {
@@ -51,6 +62,41 @@ export class SwitchSymbolsStep {
         if (groups <= 0) return;
         state.aggregate[this.from] -= groups * Math.max(1, this.ratio.x);
         state.aggregate[this.to] = (state.aggregate[this.to] || 0) + groups * Math.max(0, this.ratio.y);
+    }
+}
+
+// Pairwise combat switch: consume your symbols to affect both sides
+export class CombatSwitchStep {
+    constructor(id, enabled = true, config = {}) {
+        this.id = id; this.enabled = enabled; this.type = 'CombatSwitch';
+        this.costSymbol = ['hits','blocks','specials'].includes(config.costSymbol) ? config.costSymbol : 'specials';
+        this.costCount = Math.max(1, (config.costCount | 0) || 1);
+        this.selfDelta = Object.assign({ hits: 0, blocks: 0, specials: 0 }, config.selfDelta || {});
+        this.oppDelta = Object.assign({ hits: 0, blocks: 0, specials: 0 }, config.oppDelta || {});
+        this.max = (config.max == null ? null : Math.max(0, config.max | 0));
+    }
+    applyCombat(selfAgg, oppAgg) {
+        const available = Math.max(0, selfAgg[this.costSymbol] | 0);
+        const groupsByCost = Math.floor(available / Math.max(1, this.costCount));
+        let groups = groupsByCost;
+        if (this.max != null) groups = Math.min(groups, this.max);
+        if (groups <= 0) return;
+
+        // Pay cost from filled symbols only
+        selfAgg[this.costSymbol] = Math.max(0, (selfAgg[this.costSymbol] | 0) - groups * Math.max(1, this.costCount));
+
+        // Apply self bonuses per activation
+        for (const k of Object.keys(this.selfDelta)) {
+            const v = Math.max(0, this.selfDelta[k] | 0);
+            if (!v) continue;
+            selfAgg[k] = (selfAgg[k] | 0) + v * groups;
+        }
+        // Apply opponent debuffs per activation (subtract)
+        for (const k of Object.keys(this.oppDelta)) {
+            const v = Math.max(0, this.oppDelta[k] | 0);
+            if (!v) continue;
+            oppAgg[k] = Math.max(0, (oppAgg[k] | 0) - v * groups);
+        }
     }
 }
 

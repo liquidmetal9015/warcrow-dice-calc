@@ -558,6 +558,14 @@ export async function performCombatSimulationWithPipeline(attackerPool, defender
         const attackerRoll = applyPipelineToAggregate(preA, attackerPipeline);
         const defenderRoll = applyPipelineToAggregate(preD, defenderPipeline);
 
+        // Defender-first pairwise combat switches
+        if (defenderPipeline && typeof defenderPipeline.applyCombat === 'function') {
+            defenderPipeline.applyCombat(defenderRoll, attackerRoll, 'defender');
+        }
+        if (attackerPipeline && typeof attackerPipeline.applyCombat === 'function') {
+            attackerPipeline.applyCombat(attackerRoll, defenderRoll, 'attacker');
+        }
+
         const woundsA = Math.max(0, (attackerRoll.hits || 0) - (defenderRoll.blocks || 0));
         const woundsD = Math.max(0, (defenderRoll.hits || 0) - (attackerRoll.blocks || 0));
 

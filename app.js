@@ -1,6 +1,6 @@
 // Enhanced Warcrow Monte Carlo Calculator (refactored to use dice.js)
 import { loadDiceFaces, performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline, computeDieStats, normalizeColor, isAttackColor } from './dice.js';
-import { Pipeline, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep } from './pipeline.js';
+import { Pipeline, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep } from './pipeline.js';
 
 class WarcrowCalculator {
     constructor() {
@@ -144,6 +144,7 @@ class WarcrowCalculator {
                 if (type === 'ElitePromotion') pipeline.steps.push(new ElitePromotionStep(id, true));
                 if (type === 'AddSymbols') pipeline.steps.push(new AddSymbolsStep(id, true, { hits: 0, blocks: 0, specials: 0 }));
                 if (type === 'SwitchSymbols') pipeline.steps.push(new SwitchSymbolsStep(id, true, 'specials', 'hits', { x: 1, y: 1 }));
+                if (type === 'CombatSwitch') pipeline.steps.push(new CombatSwitchStep(id, true, { costSymbol: 'specials', costCount: 1, selfDelta: { hits: 0, blocks: 0, specials: 0 }, oppDelta: { hits: 1, blocks: 0, specials: 0 }, max: null }));
                 this.renderPipelineEditor(scope, pipeline);
                 this.onPipelineChanged(scope);
             });
@@ -252,6 +253,7 @@ class WarcrowCalculator {
                     if (s.type === 'ElitePromotion') return Object.assign(new ElitePromotionStep(s.id, s.enabled, s.symbols, s.max), {});
                     if (s.type === 'AddSymbols') return Object.assign(new AddSymbolsStep(s.id, s.enabled, s.delta || {}), {});
                     if (s.type === 'SwitchSymbols') return Object.assign(new SwitchSymbolsStep(s.id, s.enabled, s.from, s.to, s.ratio, s.max), {});
+                    if (s.type === 'CombatSwitch') return Object.assign(new CombatSwitchStep(s.id, s.enabled, { costSymbol: s.costSymbol || 'specials', costCount: s.costCount || 1, selfDelta: s.selfDelta || {}, oppDelta: s.oppDelta || {}, max: s.max }), {});
                     return null;
                 }).filter(Boolean);
                 if (steps.length) pipeline.steps = steps;
@@ -355,6 +357,46 @@ class WarcrowCalculator {
                         <input class="form-control form-control--sm" type="number" data-opt="max" value="${step.max ?? ''}" min="0" step="1" style="width:100px;" placeholder="∞">
                     </label>
                 `;
+            } else if (step.type === 'CombatSwitch') {
+                const icon = (k, fb) => this.iconSpan(k, fb);
+                const sd = step.selfDelta || {}; const od = step.oppDelta || {};
+                const symbolOpts = (() => {
+                    const m = window.WARCROW_ICON_MAP || {};
+                    const opt = (val, key, title) => `<option ${step.costSymbol===val?'selected':''} value="${val}" title="${title}">${m[key] || ''}</option>`;
+                    return [
+                        opt('hits','HIT','Hits'),
+                        opt('blocks','BLOCK','Blocks'),
+                        opt('specials','SPECIAL','Specials')
+                    ].join('');
+                })();
+                options.innerHTML = `
+                    <div class="checkbox-label" title="Cost per activation">Cost:</div>
+                    <label class="checkbox-label">
+                        <select class="form-control form-control--sm" data-opt="costSymbol" aria-label="Cost symbol" data-wc-symbols="true" style="font-family: 'WarcrowSymbols', var(--font-family-base); width: 120px;">
+                            ${symbolOpts}
+                        </select>
+                    </label>
+                    <label class="checkbox-label">× <input class="form-control form-control--sm" type="number" data-opt="costCount" value="${step.costCount||1}" min="1" step="1" style="width:80px;"></label>
+                    <label class="checkbox-label">Max groups <input class="form-control form-control--sm" type="number" data-opt="max" value="${step.max ?? ''}" min="0" step="1" style="width:100px;" placeholder="∞"></label>
+                    <div style="flex-basis:100%; height:0;"></div>
+                    <div style="width:100%;">
+                        <div class="checkbox-label" title="Your bonuses per activation">Self:</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <label class="checkbox-label">${icon('HIT','⚔️')} <input class="form-control form-control--sm" type="number" data-opt="selfDelta.hits" value="${sd.hits||0}" min="0" step="1" style="width:80px;"></label>
+                            <label class="checkbox-label">${icon('BLOCK','🛡️')} <input class="form-control form-control--sm" type="number" data-opt="selfDelta.blocks" value="${sd.blocks||0}" min="0" step="1" style="width:80px;"></label>
+                            <label class="checkbox-label">${icon('SPECIAL','⚡')} <input class="form-control form-control--sm" type="number" data-opt="selfDelta.specials" value="${sd.specials||0}" min="0" step="1" style="width:80px;"></label>
+                        </div>
+                    </div>
+                    <div style="flex-basis:100%; height:0;"></div>
+                    <div style="width:100%;">
+                        <div class="checkbox-label" title="Subtract from opponent per activation">Opponent (subtract):</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <label class="checkbox-label">${icon('HIT','⚔️')} <input class="form-control form-control--sm" type="number" data-opt="oppDelta.hits" value="${od.hits||0}" min="0" step="1" style="width:80px;"></label>
+                            <label class="checkbox-label">${icon('BLOCK','🛡️')} <input class="form-control form-control--sm" type="number" data-opt="oppDelta.blocks" value="${od.blocks||0}" min="0" step="1" style="width:80px;"></label>
+                            <label class="checkbox-label">${icon('SPECIAL','⚡')} <input class="form-control form-control--sm" type="number" data-opt="oppDelta.specials" value="${od.specials||0}" min="0" step="1" style="width:80px;"></label>
+                        </div>
+                    </div>
+                `;
             }
             card.appendChild(options);
 
@@ -383,6 +425,20 @@ class WarcrowCalculator {
                         if (el.dataset.opt === 'ratioX') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.x = Math.max(1, parseInt(el.value || '1', 10) || 1); }
                         if (el.dataset.opt === 'ratioY') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.y = Math.max(0, parseInt(el.value || '1', 10) || 1); }
                         if (el.dataset.opt === 'max') step.max = el.value === '' ? null : Math.max(0, parseInt(el.value || '0', 10) || 0);
+                    } else if (step.type === 'CombatSwitch') {
+                        const key = el.dataset.opt;
+                        if (key === 'costSymbol') { step.costSymbol = el.value; }
+                        else if (key === 'costCount') { step.costCount = Math.max(1, parseInt(el.value || '1', 10) || 1); }
+                        else if (key === 'max') { step.max = el.value === '' ? null : Math.max(0, parseInt(el.value || '0', 10) || 0); }
+                        else if (key && key.startsWith('selfDelta.')) {
+                            step.selfDelta = step.selfDelta || {};
+                            const sub = key.split('.')[1];
+                            step.selfDelta[sub] = Math.max(0, parseInt(el.value || '0', 10) || 0);
+                        } else if (key && key.startsWith('oppDelta.')) {
+                            step.oppDelta = step.oppDelta || {};
+                            const sub = key.split('.')[1];
+                            step.oppDelta[sub] = Math.max(0, parseInt(el.value || '0', 10) || 0);
+                        }
                     }
                     this.onPipelineChanged(scope);
                 });
@@ -449,7 +505,12 @@ class WarcrowCalculator {
                 from: s.from,
                 to: s.to,
                 ratio: s.ratio,
-                max: s.max
+                max: s.max,
+                // CombatSwitch specific
+                costSymbol: s.costSymbol,
+                costCount: s.costCount,
+                selfDelta: s.selfDelta,
+                oppDelta: s.oppDelta
             }));
             localStorage.setItem(key, JSON.stringify(serializable));
         } catch {}
