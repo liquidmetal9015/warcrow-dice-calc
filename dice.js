@@ -10,6 +10,14 @@ export const DS = Object.freeze({
     HOLLOW_SPECIAL: 'HOLLOW_SPECIAL'
 });
 
+// Optional helpers to work with a pipeline without creating a hard dependency cycle
+function applyPipelineToAggregate(aggregate, pipeline) {
+    if (!pipeline || typeof pipeline.applyPost !== 'function') return aggregate;
+    const state = { dice: [], rollDetails: [], aggregate: { ...aggregate } };
+    pipeline.applyPost(state);
+    return state.aggregate;
+}
+
 export async function loadDiceFaces() {
     const response = await fetch('warcrow_dice_faces.json', { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to load warcrow_dice_faces.json');
@@ -49,13 +57,14 @@ export function countSymbolsFromFace(face, isElite) {
                 result.specials += 1;
                 break;
             case DS.HOLLOW_HIT:
-                if (isElite) { result.hits += 1; } else { result.hollowHits += 1; }
+                // Always count hollows separately; elite should be handled by post-processing pipeline
+                result.hollowHits += 1;
                 break;
             case DS.HOLLOW_BLOCK:
-                if (isElite) { result.blocks += 1; } else { result.hollowBlocks += 1; }
+                result.hollowBlocks += 1;
                 break;
             case DS.HOLLOW_SPECIAL:
-                if (isElite) { result.specials += 1; } else { result.hollowSpecials += 1; }
+                result.hollowSpecials += 1;
                 break;
         }
     }
@@ -79,7 +88,7 @@ export function simulateDiceRoll(pool, facesByColor, isElite) {
         for (let i = 0; i < count; i++) {
             const faceIndex = Math.floor(Math.random() * 8);
             const face = facesByColor[colorKey][faceIndex];
-            const rolled = countSymbolsFromFace(face, isElite);
+            const rolled = countSymbolsFromFace(face, false);
             aggregate.hits += rolled.hits;
             aggregate.blocks += rolled.blocks;
             aggregate.specials += rolled.specials;
@@ -241,6 +250,148 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
     return results;
 }
 
+// New: pipeline-based Monte Carlo (post-processing after each roll)
+export async function performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline) {
+    const results = {
+        hits: {},
+        blocks: {},
+        specials: {},
+        hollowHits: {},
+        hollowBlocks: {},
+        hollowSpecials: {},
+        totalHits: {},
+        totalBlocks: {},
+        totalSpecials: {},
+        jointHitsSpecialsFilled: {},
+        jointBlocksSpecialsFilled: {},
+        jointHitsSpecialsHollow: {},
+        jointBlocksSpecialsHollow: {},
+        jointHitsSpecialsTotal: {},
+        jointBlocksSpecialsTotal: {},
+        samplesHSFilledX: [],
+        samplesHSFilledY: [],
+        samplesBSFilledX: [],
+        samplesBSFilledY: [],
+        samplesHSHollowX: [],
+        samplesHSHollowY: [],
+        samplesBSHollowX: [],
+        samplesBSHollowY: [],
+        samplesHSTotalX: [],
+        samplesHSTotalY: [],
+        samplesBSTotalX: [],
+        samplesBSTotalY: [],
+        expected: {
+            hits: 0,
+            blocks: 0,
+            specials: 0,
+            hollowHits: 0,
+            hollowBlocks: 0,
+            hollowSpecials: 0
+        },
+        timestamp: new Date().toLocaleTimeString()
+    };
+
+    for (let i = 0; i <= 50; i++) {
+        results.hits[i] = 0;
+        results.blocks[i] = 0;
+        results.specials[i] = 0;
+        results.hollowHits[i] = 0;
+        results.hollowBlocks[i] = 0;
+        results.hollowSpecials[i] = 0;
+        results.totalHits[i] = 0;
+        results.totalBlocks[i] = 0;
+        results.totalSpecials[i] = 0;
+    }
+
+    const incJoint = (map, x, y) => {
+        if (!map[x]) map[x] = {};
+        map[x][y] = (map[x][y] || 0) + 1;
+    };
+
+    for (let i = 0; i < simulationCount; i++) {
+        const pre = simulateDiceRoll(pool, facesByColor, false);
+        const roll = applyPipelineToAggregate(pre, pipeline);
+
+        results.hits[roll.hits]++;
+        results.blocks[roll.blocks]++;
+        results.specials[roll.specials]++;
+        results.hollowHits[roll.hollowHits]++;
+        results.hollowBlocks[roll.hollowBlocks]++;
+        results.hollowSpecials[roll.hollowSpecials]++;
+
+        const totalHits = (roll.hits || 0) + (roll.hollowHits || 0);
+        const totalBlocks = (roll.blocks || 0) + (roll.hollowBlocks || 0);
+        const totalSpecials = (roll.specials || 0) + (roll.hollowSpecials || 0);
+        results.totalHits[totalHits]++;
+        results.totalBlocks[totalBlocks]++;
+        results.totalSpecials[totalSpecials]++;
+
+        incJoint(results.jointHitsSpecialsFilled, roll.hits, roll.specials);
+        incJoint(results.jointBlocksSpecialsFilled, roll.blocks, roll.specials);
+        incJoint(results.jointHitsSpecialsHollow, roll.hollowHits, roll.hollowSpecials);
+        incJoint(results.jointBlocksSpecialsHollow, roll.hollowBlocks, roll.hollowSpecials);
+        incJoint(results.jointHitsSpecialsTotal, totalHits, totalSpecials);
+        incJoint(results.jointBlocksSpecialsTotal, totalBlocks, totalSpecials);
+
+        results.samplesHSFilledX.push(roll.hits);
+        results.samplesHSFilledY.push(roll.specials);
+        results.samplesBSFilledX.push(roll.blocks);
+        results.samplesBSFilledY.push(roll.specials);
+        results.samplesHSHollowX.push(roll.hollowHits);
+        results.samplesHSHollowY.push(roll.hollowSpecials);
+        results.samplesBSHollowX.push(roll.hollowBlocks);
+        results.samplesBSHollowY.push(roll.hollowSpecials);
+        results.samplesHSTotalX.push(totalHits);
+        results.samplesHSTotalY.push(totalSpecials);
+        results.samplesBSTotalX.push(totalBlocks);
+        results.samplesBSTotalY.push(totalSpecials);
+
+        results.expected.hits += roll.hits;
+        results.expected.blocks += roll.blocks;
+        results.expected.specials += roll.specials;
+        results.expected.hollowHits += roll.hollowHits;
+        results.expected.hollowBlocks += roll.hollowBlocks;
+        results.expected.hollowSpecials += roll.hollowSpecials;
+    }
+
+    for (const key of Object.keys(results.hits)) {
+        results.hits[key] = (results.hits[key] / simulationCount) * 100;
+        results.blocks[key] = (results.blocks[key] / simulationCount) * 100;
+        results.specials[key] = (results.specials[key] / simulationCount) * 100;
+        results.hollowHits[key] = (results.hollowHits[key] / simulationCount) * 100;
+        results.hollowBlocks[key] = (results.hollowBlocks[key] / simulationCount) * 100;
+        results.hollowSpecials[key] = (results.hollowSpecials[key] / simulationCount) * 100;
+    }
+    for (const key of Object.keys(results.totalHits)) {
+        results.totalHits[key] = (results.totalHits[key] / simulationCount) * 100;
+        results.totalBlocks[key] = (results.totalBlocks[key] / simulationCount) * 100;
+        results.totalSpecials[key] = (results.totalSpecials[key] / simulationCount) * 100;
+    }
+    const normalizeJoint = (map) => {
+        for (const x of Object.keys(map)) {
+            const row = map[x];
+            for (const y of Object.keys(row)) {
+                row[y] = (row[y] / simulationCount) * 100;
+            }
+        }
+    };
+    normalizeJoint(results.jointHitsSpecialsFilled);
+    normalizeJoint(results.jointBlocksSpecialsFilled);
+    normalizeJoint(results.jointHitsSpecialsHollow);
+    normalizeJoint(results.jointBlocksSpecialsHollow);
+    normalizeJoint(results.jointHitsSpecialsTotal);
+    normalizeJoint(results.jointBlocksSpecialsTotal);
+
+    results.expected.hits /= simulationCount;
+    results.expected.blocks /= simulationCount;
+    results.expected.specials /= simulationCount;
+    results.expected.hollowHits /= simulationCount;
+    results.expected.hollowBlocks /= simulationCount;
+    results.expected.hollowSpecials /= simulationCount;
+
+    return results;
+}
+
 export async function performCombatSimulation(attackerPool, defenderPool, facesByColor, simulationCount, isAttackerElite, isDefenderElite) {
     const results = {
         woundsAttacker: {}, // Attacker → Defender
@@ -296,6 +447,89 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
         results.expected.defenderHits += defenderRoll.hits;
         results.expected.defenderBlocks += defenderRoll.blocks;
         results.expected.defenderSpecials += defenderRoll.specials;
+        results.expected.woundsAttacker += woundsA;
+        results.expected.woundsDefender += woundsD;
+    }
+
+    for (const key of Object.keys(results.woundsAttacker)) {
+        results.woundsAttacker[key] = (results.woundsAttacker[key] / simulationCount) * 100;
+        results.woundsDefender[key] = (results.woundsDefender[key] / simulationCount) * 100;
+        results.attackerSpecialsDist[key] = (results.attackerSpecialsDist[key] / simulationCount) * 100;
+        results.defenderSpecialsDist[key] = (results.defenderSpecialsDist[key] / simulationCount) * 100;
+    }
+
+    results.expected.attackerHits /= simulationCount;
+    results.expected.attackerSpecials /= simulationCount;
+    results.expected.attackerBlocks /= simulationCount;
+    results.expected.defenderHits /= simulationCount;
+    results.expected.defenderBlocks /= simulationCount;
+    results.expected.defenderSpecials /= simulationCount;
+    results.expected.woundsAttacker /= simulationCount;
+    results.expected.woundsDefender /= simulationCount;
+    results.attackerWinRate = (attackerWins / simulationCount) * 100;
+    results.attackerTieRate = (attackerTies / simulationCount) * 100;
+    results.attackerLossRate = (attackerLosses / simulationCount) * 100;
+
+    return results;
+}
+
+// New: pipeline-based combat simulation
+export async function performCombatSimulationWithPipeline(attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline, defenderPipeline) {
+    const results = {
+        woundsAttacker: {},
+        woundsDefender: {},
+        attackerSpecialsDist: {},
+        defenderSpecialsDist: {},
+        expected: {
+            attackerHits: 0,
+            attackerSpecials: 0,
+            defenderBlocks: 0,
+            defenderSpecials: 0,
+            defenderHits: 0,
+            attackerBlocks: 0,
+            woundsAttacker: 0,
+            woundsDefender: 0
+        },
+        attackerWinRate: 0,
+        attackerTieRate: 0,
+        attackerLossRate: 0,
+        timestamp: new Date().toLocaleTimeString()
+    };
+
+    for (let i = 0; i <= 50; i++) {
+        results.woundsAttacker[i] = 0;
+        results.woundsDefender[i] = 0;
+        results.attackerSpecialsDist[i] = 0;
+        results.defenderSpecialsDist[i] = 0;
+    }
+
+    let attackerWins = 0;
+    let attackerTies = 0;
+    let attackerLosses = 0;
+    for (let i = 0; i < simulationCount; i++) {
+        const preA = simulateDiceRoll(attackerPool, facesByColor, false);
+        const preD = simulateDiceRoll(defenderPool, facesByColor, false);
+        const attackerRoll = applyPipelineToAggregate(preA, attackerPipeline);
+        const defenderRoll = applyPipelineToAggregate(preD, defenderPipeline);
+
+        const woundsA = Math.max(0, (attackerRoll.hits || 0) - (defenderRoll.blocks || 0));
+        const woundsD = Math.max(0, (defenderRoll.hits || 0) - (attackerRoll.blocks || 0));
+
+        results.woundsAttacker[woundsA]++;
+        results.woundsDefender[woundsD]++;
+        results.attackerSpecialsDist[attackerRoll.specials]++;
+        results.defenderSpecialsDist[defenderRoll.specials]++;
+
+        if (woundsA > woundsD) attackerWins++;
+        else if (woundsA === woundsD) attackerTies++;
+        else attackerLosses++;
+
+        results.expected.attackerHits += attackerRoll.hits || 0;
+        results.expected.attackerSpecials += attackerRoll.specials || 0;
+        results.expected.attackerBlocks += attackerRoll.blocks || 0;
+        results.expected.defenderHits += defenderRoll.hits || 0;
+        results.expected.defenderBlocks += defenderRoll.blocks || 0;
+        results.expected.defenderSpecials += defenderRoll.specials || 0;
         results.expected.woundsAttacker += woundsA;
         results.expected.woundsDefender += woundsD;
     }

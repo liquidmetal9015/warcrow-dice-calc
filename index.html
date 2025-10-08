@@ -102,6 +102,24 @@
                     </div>
                 </div>
 
+                <!-- Post-processing (Analysis) - Pipeline Editor -->
+                <div class="pipeline-editor card" id="analysis-pipeline-editor">
+                    <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                        <h2>Post-processing</h2>
+                        <div class="editor-actions" style="display:flex; align-items:center; gap:8px;">
+                            <select id="analysis-add-step" class="form-control form-control--sm" aria-label="Add step">
+                                <option value="AddSymbols">Automatic symbols</option>
+                                <option value="ElitePromotion">Elite promotion</option>
+                                <option value="SwitchSymbols">Switch symbols</option>
+                            </select>
+                            <button class="btn btn--primary btn--sm" id="analysis-add-step-btn">Add</button>
+                        </div>
+                    </div>
+                    <div class="card__body">
+                        <div class="step-list" id="analysis-step-list"></div>
+                    </div>
+                </div>
+
 
                 <!-- Results Display -->
                 <div class="results-section">
@@ -120,7 +138,7 @@
                     </div>
 
                     <!-- Distribution Viewer -->
-                    <div class="chart-section">
+                <div class="chart-section" style="margin-top: 24px;">
                         <h3>Symbol Distributions</h3>
                         <div id="analysis-charts">
                             <div class="chart-block">
@@ -289,6 +307,22 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="pipeline-editor card" id="attacker-pipeline-editor" style="margin-top: 12px;">
+                                <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                                    <h2 style="font-size: 16px;">Post-processing</h2>
+                                    <div class="editor-actions" style="display:flex; align-items:center; gap:8px;">
+                                        <select id="attacker-add-step" class="form-control form-control--sm" aria-label="Add step">
+                                            <option value="AddSymbols">Automatic symbols</option>
+                                            <option value="ElitePromotion">Elite promotion</option>
+                                            <option value="SwitchSymbols">Switch symbols</option>
+                                        </select>
+                                        <button class="btn btn--primary btn--sm" id="attacker-add-step-btn">Add</button>
+                                    </div>
+                                </div>
+                                <div class="card__body">
+                                    <div class="step-list" id="attacker-step-list"></div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="vs-divider">VS</div>
@@ -359,6 +393,22 @@
                                         </div>
                                         <div class="dice-label">Yellow</div>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="pipeline-editor card" id="defender-pipeline-editor" style="margin-top: 12px;">
+                                <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                                    <h2 style="font-size: 16px;">Post-processing</h2>
+                                    <div class="editor-actions" style="display:flex; align-items:center; gap:8px;">
+                                        <select id="defender-add-step" class="form-control form-control--sm" aria-label="Add step">
+                                            <option value="AddSymbols">Automatic symbols</option>
+                                            <option value="ElitePromotion">Elite promotion</option>
+                                            <option value="SwitchSymbols">Switch symbols</option>
+                                        </select>
+                                        <button class="btn btn--primary btn--sm" id="defender-add-step-btn">Add</button>
+                                    </div>
+                                </div>
+                                <div class="card__body">
+                                    <div class="step-list" id="defender-step-list"></div>
                                 </div>
                             </div>
                         </div>
@@ -534,6 +584,28 @@
         </div>
     </div>
 
+    <script>
+      // Glyph mappings for WarcrowSymbols (from Warcrow.ttf)
+      // These are literal characters the font maps to glyphs
+      window.WARCROW_ICON_MAP = {
+        'HIT': '1',
+        'HOLLOW_HIT': '2',
+        'BLOCK': '3',
+        'HOLLOW_BLOCK': '4',
+        'SPECIAL': '5',
+        'HOLLOW_SPECIAL': '6',
+        // Optional: dice face icons by color
+        'DIE_BLACK': '7',
+        'DIE_BLUE': '8',
+        'DIE_GREEN': '9',
+        'DIE_YELLOW': '0',
+        'DIE_ORANGE': 'q',
+        'DIE_RED': 'w',
+        // Optional: other symbols
+        'STRESS': 'f',
+        'WOUND': 'L'
+      };
+    </script>
     <script type="module" src="app.js?v=2"></script>
 </body>
 </html>

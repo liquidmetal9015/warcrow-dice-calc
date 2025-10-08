@@ -1,5 +1,6 @@
 // Enhanced Warcrow Monte Carlo Calculator (refactored to use dice.js)
-import { loadDiceFaces, performMonteCarloSimulation, performCombatSimulation, computeDieStats, normalizeColor, isAttackColor } from './dice.js';
+import { loadDiceFaces, performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline, computeDieStats, normalizeColor, isAttackColor } from './dice.js';
+import { Pipeline, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep } from './pipeline.js';
 
 class WarcrowCalculator {
     constructor() {
@@ -30,6 +31,12 @@ class WarcrowCalculator {
         this.pendingAnalysisRun = false;
         this.pendingCombatRun = false;
 
+        // Pipelines (initially empty/default)
+        // Pipelines start empty by default; users add steps via the editor
+        this.analysisPipeline = new Pipeline([]);
+        this.attackerPipeline = new Pipeline([]);
+        this.defenderPipeline = new Pipeline([]);
+
         this.init();
     }
 
@@ -52,6 +59,15 @@ class WarcrowCalculator {
         this.updateFaceStatsUI();
         this.updateDisplay();
         this.resetResultsDisplay();
+
+        // Initialize Post-processing UI values from current pipeline
+        this.initPostProcessingUI();
+
+        // Render pipeline editors
+        this.loadPipelinesFromStorage();
+        this.renderPipelineEditor('analysis', this.analysisPipeline);
+        this.renderPipelineEditor('attacker', this.attackerPipeline);
+        this.renderPipelineEditor('defender', this.defenderPipeline);
     }
 
     initializeEventListeners() {
@@ -130,6 +146,25 @@ class WarcrowCalculator {
         }
 
         // No checkbox controls; charts are always present in collapsible sections
+
+        // Pipeline editor hooks: add-step buttons
+        const bindAdd = (scope, pipeline) => {
+            const select = document.getElementById(`${scope}-add-step`);
+            const btn = document.getElementById(`${scope}-add-step-btn`);
+            btn?.addEventListener('click', () => {
+                const type = select?.value;
+                if (!type) return;
+                const id = `${type}-${Date.now()}`;
+                if (type === 'ElitePromotion') pipeline.steps.push(new ElitePromotionStep(id, true));
+                if (type === 'AddSymbols') pipeline.steps.push(new AddSymbolsStep(id, true, { hits: 0, blocks: 0, specials: 0 }));
+                if (type === 'SwitchSymbols') pipeline.steps.push(new SwitchSymbolsStep(id, true, 'specials', 'hits', { x: 1, y: 1 }));
+                this.renderPipelineEditor(scope, pipeline);
+                this.onPipelineChanged(scope);
+            });
+        };
+        bindAdd('analysis', this.analysisPipeline);
+        bindAdd('attacker', this.attackerPipeline);
+        bindAdd('defender', this.defenderPipeline);
     }
 
     handleDiceAdjust(button) {
@@ -184,6 +219,224 @@ class WarcrowCalculator {
 
     updateDisplay() {
         this.updateStatus();
+    }
+
+    ensureAddSymbolsStep(pipeline, id) {
+        let step = pipeline.steps.find(s => s.type === 'AddSymbols' && s.id === id);
+        if (!step) {
+            step = new AddSymbolsStep(id, false, { hits: 0, blocks: 0, specials: 0 });
+            pipeline.steps.push(step);
+        }
+        return step;
+    }
+
+    initPostProcessingUI() {
+        // no-op placeholder after moving to card-based UI
+    }
+
+    loadPipelinesFromStorage() {
+        try {
+            const load = (scope, pipeline) => {
+                const raw = localStorage.getItem(`pipeline:${scope}`);
+                if (!raw) return;
+                const arr = JSON.parse(raw);
+                const steps = arr.map(s => {
+                    if (s.type === 'ElitePromotion') return Object.assign(new ElitePromotionStep(s.id, s.enabled, s.symbols, s.max), {});
+                    if (s.type === 'AddSymbols') return Object.assign(new AddSymbolsStep(s.id, s.enabled, s.delta || {}), {});
+                    if (s.type === 'SwitchSymbols') return Object.assign(new SwitchSymbolsStep(s.id, s.enabled, s.from, s.to, s.ratio, s.max), {});
+                    return null;
+                }).filter(Boolean);
+                if (steps.length) pipeline.steps = steps;
+            };
+            load('analysis', this.analysisPipeline);
+            load('attacker', this.attackerPipeline);
+            load('defender', this.defenderPipeline);
+        } catch {}
+    }
+
+    renderPipelineEditor(scope, pipeline) {
+        const list = document.getElementById(`${scope}-step-list`);
+        if (!list) return;
+        list.innerHTML = '';
+        pipeline.steps.forEach((step, index) => {
+            const card = document.createElement('div');
+            card.className = 'step-card';
+            card.draggable = true;
+            card.dataset.index = String(index);
+
+            const handle = document.createElement('div');
+            handle.className = 'drag-handle';
+            handle.innerHTML = '⋮⋮';
+            card.appendChild(handle);
+
+            const header = document.createElement('div');
+            header.className = 'step-header';
+            const title = document.createElement('div');
+            title.className = 'step-title';
+            title.textContent = this.friendlyStepTitle(step.type);
+            const toggle = document.createElement('label');
+            toggle.className = 'step-switch';
+            toggle.innerHTML = `<input type="checkbox" ${step.enabled ? 'checked' : ''}> <span>Enabled</span>`;
+            header.appendChild(title);
+            header.appendChild(toggle);
+            card.appendChild(header);
+
+            const actions = document.createElement('div');
+            actions.className = 'step-actions';
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn btn--danger btn--sm';
+            delBtn.textContent = 'Remove';
+            actions.appendChild(delBtn);
+            card.appendChild(actions);
+
+            const options = document.createElement('div');
+            options.className = 'step-options';
+            if (step.type === 'AddSymbols') {
+                options.innerHTML = `
+                    <label class="checkbox-label">+Hits <input class="form-control form-control--sm" type="number" data-opt="hits" value="${step.delta?.hits || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label">+Blocks <input class="form-control form-control--sm" type="number" data-opt="blocks" value="${step.delta?.blocks || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label">+Specials <input class="form-control form-control--sm" type="number" data-opt="specials" value="${step.delta?.specials || 0}" min="0" step="1" style="width:90px;"></label>
+                `;
+            } else if (step.type === 'ElitePromotion') {
+                options.innerHTML = `
+                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowHits" ${step.symbols?.includes('hollowHits') ? 'checked' : ''}> hits</label>
+                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowBlocks" ${step.symbols?.includes('hollowBlocks') ? 'checked' : ''}> blocks</label>
+                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowSpecials" ${step.symbols?.includes('hollowSpecials') ? 'checked' : ''}> specials</label>
+                `;
+            } else if (step.type === 'SwitchSymbols') {
+                options.innerHTML = `
+                    <label class="checkbox-label">
+                        <input class="form-control form-control--sm" type="number" data-opt="ratioX" value="${step.ratio?.x || 1}" min="1" step="1" style="width:80px;">&nbsp;
+                        of
+                    </label>
+                    <label class="checkbox-label">
+                        <select class="form-control form-control--sm" data-opt="from">
+                            <option ${step.from==='hits'?'selected':''} value="hits">hits</option>
+                            <option ${step.from==='blocks'?'selected':''} value="blocks">blocks</option>
+                            <option ${step.from==='specials'?'selected':''} value="specials">specials</option>
+                            <option ${step.from==='hollowHits'?'selected':''} value="hollowHits">hollow hits</option>
+                            <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks">hollow blocks</option>
+                            <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials">hollow specials</option>
+                        </select>
+                    </label>
+                    <div class="checkbox-label">→</div>
+                    <label class="checkbox-label">
+                        <input class="form-control form-control--sm" type="number" data-opt="ratioY" value="${step.ratio?.y || 1}" min="0" step="1" style="width:80px;">&nbsp;
+                        of
+                    </label>
+                    <label class="checkbox-label">
+                        <select class="form-control form-control--sm" data-opt="to">
+                            <option ${step.to==='hits'?'selected':''} value="hits">hits</option>
+                            <option ${step.to==='blocks'?'selected':''} value="blocks">blocks</option>
+                            <option ${step.to==='specials'?'selected':''} value="specials">specials</option>
+                        </select>
+                    </label>
+                    <label class="checkbox-label">Max groups
+                        <input class="form-control form-control--sm" type="number" data-opt="max" value="${step.max ?? ''}" min="0" step="1" style="width:100px;" placeholder="∞">
+                    </label>
+                `;
+            }
+            card.appendChild(options);
+
+            // Bind interactions
+            toggle.querySelector('input')?.addEventListener('change', (e) => {
+                step.enabled = e.target.checked;
+                this.onPipelineChanged(scope);
+            });
+            delBtn.addEventListener('click', () => {
+                const idx = pipeline.steps.indexOf(step);
+                if (idx >= 0) pipeline.steps.splice(idx, 1);
+                this.renderPipelineEditor(scope, pipeline);
+                this.onPipelineChanged(scope);
+            });
+            options.querySelectorAll('input,select').forEach(el => {
+                el.addEventListener('input', () => {
+                    if (step.type === 'AddSymbols') {
+                        step.delta = step.delta || {};
+                        step.delta[el.dataset.opt] = parseInt(el.value || '0', 10) || 0;
+                    } else if (step.type === 'ElitePromotion') {
+                        const set = new Set(step.symbols || ['hollowHits','hollowBlocks','hollowSpecials']);
+                        if (el.checked) set.add(el.dataset.opt); else set.delete(el.dataset.opt);
+                        step.symbols = Array.from(set);
+                    } else if (step.type === 'SwitchSymbols') {
+                        if (el.dataset.opt === 'from' || el.dataset.opt === 'to') step[el.dataset.opt] = el.value;
+                        if (el.dataset.opt === 'ratioX') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.x = Math.max(1, parseInt(el.value || '1', 10) || 1); }
+                        if (el.dataset.opt === 'ratioY') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.y = Math.max(0, parseInt(el.value || '1', 10) || 1); }
+                        if (el.dataset.opt === 'max') step.max = el.value === '' ? null : Math.max(0, parseInt(el.value || '0', 10) || 0);
+                    }
+                    this.onPipelineChanged(scope);
+                });
+            });
+
+            // Drag-and-drop reorder
+            card.addEventListener('dragstart', (e) => {
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(index));
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                list.querySelectorAll('.step-card').forEach(c => c.classList.remove('over'));
+            });
+            list.appendChild(card);
+        });
+
+        list.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = list.querySelector('.dragging');
+            if (!dragging) return;
+            let after = null;
+            Array.from(list.children).forEach(child => child.classList.remove('over'));
+            for (const child of Array.from(list.children)) {
+                const rect = child.getBoundingClientRect();
+                if (e.clientY < rect.top + rect.height / 2) { after = child; break; }
+            }
+            if (after) { list.insertBefore(dragging, after); after.classList.add('over'); }
+            else { list.appendChild(dragging); }
+        });
+        list.addEventListener('drop', () => {
+            // Recompute order based on DOM
+            const newSteps = [];
+            list.querySelectorAll('.step-card').forEach(card => {
+                const oldIdx = parseInt(card.dataset.index || '0', 10);
+                newSteps.push(pipeline.steps[oldIdx]);
+            });
+            pipeline.steps = newSteps;
+            this.renderPipelineEditor(scope, pipeline);
+            this.onPipelineChanged(scope);
+        });
+    }
+
+    friendlyStepTitle(type) {
+        switch (type) {
+            case 'ElitePromotion': return 'Elite promotion';
+            case 'AddSymbols': return 'Automatic symbols';
+            case 'SwitchSymbols': return 'Switch symbols';
+            default: return type;
+        }
+    }
+
+    onPipelineChanged(scope) {
+        // Persist
+        try {
+            const key = `pipeline:${scope}`;
+            const serializable = this[`${scope}Pipeline`].steps.map(s => ({
+                type: s.type,
+                id: s.id,
+                enabled: !!s.enabled,
+                delta: s.delta,
+                symbols: s.symbols,
+                from: s.from,
+                to: s.to,
+                ratio: s.ratio,
+                max: s.max
+            }));
+            localStorage.setItem(key, JSON.stringify(serializable));
+        } catch {}
+
+        // Re-run
+        if (scope === 'analysis') { this.hideResults(); this.scheduleAnalysisRun(); }
+        else { this.hideCombatResults(); this.scheduleCombatRun(); }
     }
 
     markResultsOutdated() {
@@ -308,7 +561,7 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const results = await performMonteCarloSimulation(this.analysisPool, this.facesByColor, simulationCount, false);
+            const results = await performMonteCarloSimulationWithPipeline(this.analysisPool, this.facesByColor, simulationCount, this.analysisPipeline);
             this.lastSimulationData = results;
             this.resultsOutdated = false;
             this.showResults(results);
@@ -336,9 +589,16 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const isAttackerElite = document.getElementById('attacker-elite').checked;
-            const isDefenderElite = document.getElementById('defender-elite').checked;
-            const results = await performCombatSimulation(this.attackerPool, this.defenderPool, this.facesByColor, simulationCount, isAttackerElite, isDefenderElite);
+            const isAttackerElite = document.getElementById('attacker-elite')?.checked;
+            const isDefenderElite = document.getElementById('defender-elite')?.checked;
+            // Map checkboxes to elite steps for now (UI migration path)
+            const setElite = (pipeline, enabled) => {
+                const step = pipeline.steps.find(s => s.type === 'ElitePromotion');
+                if (step) step.enabled = !!enabled;
+            };
+            setElite(this.attackerPipeline, !!isAttackerElite);
+            setElite(this.defenderPipeline, !!isDefenderElite);
+            const results = await performCombatSimulationWithPipeline(this.attackerPool, this.defenderPool, this.facesByColor, simulationCount, this.attackerPipeline, this.defenderPipeline);
             this.lastCombatSimulationData = results;
             this.combatResultsOutdated = false;
             this.showCombatResults(results);
@@ -457,9 +717,14 @@ class WarcrowCalculator {
             wrapper.className = 'die-reference';
             wrapper.dataset.color = pretty;
             const role = isAttackColor(color) ? 'Attack' : 'Defense';
+            // Prefer custom font glyph for the header icon if mapping exists
+            const dieKey = `DIE_${color}`; // e.g., DIE_RED
+            const headerIcon = (window.WARCROW_ICON_MAP && window.WARCROW_ICON_MAP[dieKey])
+                ? `<span class="wc-icon">${window.WARCROW_ICON_MAP[dieKey]}</span>`
+                : iconMap[color];
             wrapper.innerHTML = `
                 <div class="die-header">
-                    <div class="dice-icon ${pretty.toLowerCase()}-die">${iconMap[color]}</div>
+                    <div class="dice-icon ${pretty.toLowerCase()}-die">${headerIcon}</div>
                     <div class="die-info">
                         <h3>${pretty} ${role} Die</h3>
                         <p>Faces derived from canonical JSON</p>
@@ -471,7 +736,18 @@ class WarcrowCalculator {
             faces.forEach((face, idx) => {
                 const div = document.createElement('div');
                 div.className = 'face-item';
-                div.textContent = `Face ${idx+1}: ${face.map(sym => symbolToEmoji(sym)).join(' ')}`;
+                const text = `Face ${idx+1}: `;
+                // If a glyph mapping exists, render spans using the custom font
+                if (window.WARCROW_ICON_MAP && typeof window.WARCROW_ICON_MAP === 'object') {
+                    const spans = face.map(sym => {
+                        const g = window.WARCROW_ICON_MAP[sym];
+                        if (!g) return symbolToEmoji(sym);
+                        return `<span class="wc-icon">${g}</span>`;
+                    }).join(' ');
+                    div.innerHTML = text + spans;
+                } else {
+                    div.textContent = text + face.map(sym => symbolToEmoji(sym)).join(' ');
+                }
                 list.appendChild(div);
             });
             faceGrid.appendChild(wrapper);

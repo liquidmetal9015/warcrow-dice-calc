@@ -737,6 +737,21 @@ select.form-control {
     format('woff2');
 }
 
+@font-face {
+  font-family: 'WarcrowSymbols';
+  src: url('Warcrow.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* Utility: render a symbol glyph from WarcrowSymbols font */
+.wc-icon {
+  font-family: 'WarcrowSymbols', 'FKGroteskNeue', sans-serif;
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1;
+}
+
 /* END PERPLEXITY DESIGN SYSTEM */
 /* Header */
 .header {
@@ -896,10 +911,10 @@ select.form-control {
 }
 
 .red-die { background-color: #DC2626; }
-.orange-die { background-color: #EA580C; }
-.yellow-die { background-color: #EAB308; color: var(--color-slate-900); }
-.green-die { background-color: #16A34A; }
-.blue-die { background-color: #2563EB; }
+.orange-die { background-color: #ee7401; }
+.yellow-die { background-color: #ffed00; color: var(--color-slate-900); }
+.green-die { background-color: #75e93c; }
+.blue-die { background-color: #009ee3; }
 .black-die { background-color: #374151; }
 
 /* Dice Controls */
@@ -1395,6 +1410,93 @@ details.accordion[open] > summary::after {
 .single-chart-container {
   position: relative;
   height: 300px;
+}
+
+/* Pipeline editor */
+.pipeline-editor {
+  margin-top: var(--space-24);
+  margin-bottom: var(--space-24);
+}
+
+.step-list {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.step-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  background: var(--color-background);
+  border: 1px solid var(--color-card-border-inner);
+  border-radius: var(--radius-base);
+}
+
+.step-card.dragging {
+  opacity: 0.8;
+  box-shadow: var(--shadow-md);
+}
+
+.step-card.over {
+  border-color: var(--color-primary);
+  background: var(--color-secondary);
+}
+
+.drag-handle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--color-text-secondary);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.step-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.step-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.step-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.step-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* Emphasized buttons */
+.btn--danger {
+  background: var(--color-error);
+  color: var(--color-white);
+}
+.btn--danger:hover {
+  background: rgba(var(--color-error-rgb), 0.9);
+}
+.btn--danger:active {
+  background: rgba(var(--color-error-rgb), 0.85);
 }
 
 /* Combat Section */
