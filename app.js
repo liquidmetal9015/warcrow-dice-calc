@@ -30,6 +30,7 @@ class WarcrowCalculator {
         this.combatDebounceTimeout = null;
         this.pendingAnalysisRun = false;
         this.pendingCombatRun = false;
+        this._missingIconLogged = new Set();
 
         // Pipelines (initially empty/default)
         // Pipelines start empty by default; users add steps via the editor
@@ -57,6 +58,7 @@ class WarcrowCalculator {
         const tabSelector = document.querySelector('.tab-selector');
         if (tabSelector) tabSelector.style.visibility = 'visible';
         this.updateFaceStatsUI();
+        this.updateStaticDiceIcons();
         this.updateDisplay();
         this.resetResultsDisplay();
 
@@ -214,11 +216,33 @@ class WarcrowCalculator {
         document.getElementById('analysis-tab').classList.toggle('hidden', tab !== 'analysis');
         document.getElementById('combat-tab').classList.toggle('hidden', tab !== 'combat');
         document.getElementById('faces-tab').classList.toggle('hidden', tab !== 'faces');
+        // Ensure glyph icons are applied when switching tabs
+        this.updateStaticDiceIcons?.();
         this.updateDisplay();
     }
 
     updateDisplay() {
         this.updateStatus();
+    }
+
+    iconSpan(key, fallbackText) {
+        const map = window.WARCROW_ICON_MAP;
+        if (!map) {
+            throw new Error('WARCROW_ICON_MAP is not defined');
+        }
+        const glyph = map[key];
+        if (glyph) return `<span class="wc-icon">${glyph}</span>`;
+        throw new Error(`Missing glyph mapping for ${key}`);
+    }
+
+    logMissingIcon(key) {
+        try {
+            if (!this._missingIconLogged) this._missingIconLogged = new Set();
+            if (!this._missingIconLogged.has(key)) {
+                console.warn(`[Warcrow] Missing glyph for ${key}; using fallback.`);
+                this._missingIconLogged.add(key);
+            }
+        } catch {}
     }
 
     ensureAddSymbolsStep(pipeline, id) {
@@ -292,31 +316,36 @@ class WarcrowCalculator {
             const options = document.createElement('div');
             options.className = 'step-options';
             if (step.type === 'AddSymbols') {
+                const m = window.WARCROW_ICON_MAP || {};
+                const icon = (k, fb) => this.iconSpan(k, fb);
                 options.innerHTML = `
-                    <label class="checkbox-label">+Hits <input class="form-control form-control--sm" type="number" data-opt="hits" value="${step.delta?.hits || 0}" min="0" step="1" style="width:90px;"></label>
-                    <label class="checkbox-label">+Blocks <input class="form-control form-control--sm" type="number" data-opt="blocks" value="${step.delta?.blocks || 0}" min="0" step="1" style="width:90px;"></label>
-                    <label class="checkbox-label">+Specials <input class="form-control form-control--sm" type="number" data-opt="specials" value="${step.delta?.specials || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label">${icon('HIT','⚔️')} Hits <input class="form-control form-control--sm" type="number" data-opt="hits" value="${step.delta?.hits || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label">${icon('BLOCK','🛡️')} Blocks <input class="form-control form-control--sm" type="number" data-opt="blocks" value="${step.delta?.blocks || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label">${icon('SPECIAL','⚡')} Specials <input class="form-control form-control--sm" type="number" data-opt="specials" value="${step.delta?.specials || 0}" min="0" step="1" style="width:90px;"></label>
                 `;
             } else if (step.type === 'ElitePromotion') {
+                const m = window.WARCROW_ICON_MAP || {};
+                const icon = (k, fb) => this.iconSpan(k, fb);
                 options.innerHTML = `
-                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowHits" ${step.symbols?.includes('hollowHits') ? 'checked' : ''}> hits</label>
-                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowBlocks" ${step.symbols?.includes('hollowBlocks') ? 'checked' : ''}> blocks</label>
-                    <label class="checkbox-label"><input type="checkbox" data-opt="hollowSpecials" ${step.symbols?.includes('hollowSpecials') ? 'checked' : ''}> specials</label>
+                    <label class="checkbox-label">${icon('HOLLOW_HIT','⭕')} hollow hits <input type="checkbox" data-opt="hollowHits" ${step.symbols?.includes('hollowHits') ? 'checked' : ''}></label>
+                    <label class="checkbox-label">${icon('HOLLOW_BLOCK','⭕')} hollow blocks <input type="checkbox" data-opt="hollowBlocks" ${step.symbols?.includes('hollowBlocks') ? 'checked' : ''}></label>
+                    <label class="checkbox-label">${icon('HOLLOW_SPECIAL','⭕')} hollow specials <input type="checkbox" data-opt="hollowSpecials" ${step.symbols?.includes('hollowSpecials') ? 'checked' : ''}></label>
                 `;
             } else if (step.type === 'SwitchSymbols') {
+                const m = window.WARCROW_ICON_MAP || {};
                 options.innerHTML = `
                     <label class="checkbox-label">
                         <input class="form-control form-control--sm" type="number" data-opt="ratioX" value="${step.ratio?.x || 1}" min="1" step="1" style="width:80px;">&nbsp;
                         of
                     </label>
                     <label class="checkbox-label">
-                        <select class="form-control form-control--sm" data-opt="from">
-                            <option ${step.from==='hits'?'selected':''} value="hits">hits</option>
-                            <option ${step.from==='blocks'?'selected':''} value="blocks">blocks</option>
-                            <option ${step.from==='specials'?'selected':''} value="specials">specials</option>
-                            <option ${step.from==='hollowHits'?'selected':''} value="hollowHits">hollow hits</option>
-                            <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks">hollow blocks</option>
-                            <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials">hollow specials</option>
+                        <select class="form-control form-control--sm" data-opt="from" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
+                            <option ${step.from==='hits'?'selected':''} value="hits">${m.HIT || '⚔️'} hits</option>
+                            <option ${step.from==='blocks'?'selected':''} value="blocks">${m.BLOCK || '🛡️'} blocks</option>
+                            <option ${step.from==='specials'?'selected':''} value="specials">${m.SPECIAL || '⚡'} specials</option>
+                            <option ${step.from==='hollowHits'?'selected':''} value="hollowHits">${m.HOLLOW_HIT || '⭕'} hollow hits</option>
+                            <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks">${m.HOLLOW_BLOCK || '⭕'} hollow blocks</option>
+                            <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials">${m.HOLLOW_SPECIAL || '⭕'} hollow specials</option>
                         </select>
                     </label>
                     <div class="checkbox-label">→</div>
@@ -325,10 +354,10 @@ class WarcrowCalculator {
                         of
                     </label>
                     <label class="checkbox-label">
-                        <select class="form-control form-control--sm" data-opt="to">
-                            <option ${step.to==='hits'?'selected':''} value="hits">hits</option>
-                            <option ${step.to==='blocks'?'selected':''} value="blocks">blocks</option>
-                            <option ${step.to==='specials'?'selected':''} value="specials">specials</option>
+                        <select class="form-control form-control--sm" data-opt="to" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
+                            <option ${step.to==='hits'?'selected':''} value="hits">${m.HIT || '⚔️'} hits</option>
+                            <option ${step.to==='blocks'?'selected':''} value="blocks">${m.BLOCK || '🛡️'} blocks</option>
+                            <option ${step.to==='specials'?'selected':''} value="specials">${m.SPECIAL || '⚡'} specials</option>
                         </select>
                     </label>
                     <label class="checkbox-label">Max groups
@@ -622,9 +651,10 @@ class WarcrowCalculator {
         const ex = results?.expected || {};
         const safe = (v) => (Number.isFinite(v) ? v : 0);
         const minMax = this.computeMinMax(results);
+        const icon = (key, fallback) => this.iconSpan(key, fallback);
         summary.innerHTML = `
             <div class="symbol-group">
-                <h3>⚔️ Hits</h3>
+                <h3>${icon('HIT','⚔️')} Hits</h3>
                 <div class="symbol-stats">
                     <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.hits).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.hits.min}</span></div>
@@ -632,7 +662,7 @@ class WarcrowCalculator {
                 </div>
             </div>
             <div class="symbol-group">
-                <h3>🛡️ Blocks</h3>
+                <h3>${icon('BLOCK','🛡️')} Blocks</h3>
                 <div class="symbol-stats">
                     <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.blocks).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.blocks.min}</span></div>
@@ -640,7 +670,7 @@ class WarcrowCalculator {
                 </div>
             </div>
             <div class="symbol-group">
-                <h3>⚡ Specials</h3>
+                <h3>${icon('SPECIAL','⚡')} Specials</h3>
                 <div class="symbol-stats">
                     <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.specials).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.specials.min}</span></div>
@@ -671,24 +701,25 @@ class WarcrowCalculator {
         const summary = document.getElementById('combat-summary');
         const ex = results?.expected || {};
         const safe = (v) => (Number.isFinite(v) ? v : 0);
+        const icon = (key, fallback) => this.iconSpan(key, fallback);
         summary.innerHTML = `
             <div class="combat-stats">
                 <div class="stat-group attacker-stats"><h3>Attacker</h3>
-                    <div class="stat-item"><span class="stat-label">Expected Hits</span><span class="stat-value">${safe(ex.attackerHits).toFixed(2)}</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Specials</span><span class="stat-value">${safe(ex.attackerSpecials).toFixed(2)}</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Blocks</span><span class="stat-value">${safe(ex.attackerBlocks).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('HIT','⚔️')} Hits</span><span class="stat-value">${safe(ex.attackerHits).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('SPECIAL','⚡')} Specials</span><span class="stat-value">${safe(ex.attackerSpecials).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('BLOCK','🛡️')} Blocks</span><span class="stat-value">${safe(ex.attackerBlocks).toFixed(2)}</span></div>
                 </div>
                 <div class="stat-group defender-stats"><h3>Defender</h3>
-                    <div class="stat-item"><span class="stat-label">Expected Hits</span><span class="stat-value">${safe(ex.defenderHits).toFixed(2)}</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Specials</span><span class="stat-value">${safe(ex.defenderSpecials).toFixed(2)}</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Blocks</span><span class="stat-value">${safe(ex.defenderBlocks).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('HIT','⚔️')} Hits</span><span class="stat-value">${safe(ex.defenderHits).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('SPECIAL','⚡')} Specials</span><span class="stat-value">${safe(ex.defenderSpecials).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('BLOCK','🛡️')} Blocks</span><span class="stat-value">${safe(ex.defenderBlocks).toFixed(2)}</span></div>
                 </div>
                 <div class="stat-group outcome-stats"><h3>Outcome</h3>
                     <div class="stat-item"><span class="stat-label">Attacker Win Rate</span><span class="stat-value">${safe(results.attackerWinRate).toFixed(1)}%</span></div>
                     <div class="stat-item"><span class="stat-label">Attacker Tie Rate</span><span class="stat-value">${safe(results.attackerTieRate).toFixed(1)}%</span></div>
                     <div class="stat-item"><span class="stat-label">Attacker Loss Rate</span><span class="stat-value">${safe(results.attackerLossRate).toFixed(1)}%</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Wounds (Attacker → Defender)</span><span class="stat-value">${safe(ex.woundsAttacker).toFixed(2)}</span></div>
-                    <div class="stat-item"><span class="stat-label">Expected Wounds (Defender → Attacker)</span><span class="stat-value">${safe(ex.woundsDefender).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('WOUND','❤')} Wounds (Attacker → Defender)</span><span class="stat-value">${safe(ex.woundsAttacker).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">${icon('WOUND','❤')} Wounds (Defender → Attacker)</span><span class="stat-value">${safe(ex.woundsDefender).toFixed(2)}</span></div>
                 </div>
             </div>`;
         document.getElementById('combat-results-timestamp').textContent = results.timestamp;
@@ -719,9 +750,7 @@ class WarcrowCalculator {
             const role = isAttackColor(color) ? 'Attack' : 'Defense';
             // Prefer custom font glyph for the header icon if mapping exists
             const dieKey = `DIE_${color}`; // e.g., DIE_RED
-            const headerIcon = (window.WARCROW_ICON_MAP && window.WARCROW_ICON_MAP[dieKey])
-                ? `<span class="wc-icon">${window.WARCROW_ICON_MAP[dieKey]}</span>`
-                : iconMap[color];
+            const headerIcon = this.iconSpan(dieKey, iconMap[color]);
             wrapper.innerHTML = `
                 <div class="die-header">
                     <div class="dice-icon ${pretty.toLowerCase()}-die">${headerIcon}</div>
@@ -752,6 +781,17 @@ class WarcrowCalculator {
             });
             faceGrid.appendChild(wrapper);
         }
+    }
+
+    updateStaticDiceIcons() {
+        document.querySelectorAll('.dice-type .dice-icon').forEach(div => {
+            const parent = div.closest('.dice-type');
+            const label = parent?.dataset.color;
+            if (!label) return;
+            const key = `DIE_${normalizeColor(label)}`;
+            const g = window.WARCROW_ICON_MAP?.[key];
+            if (g) div.innerHTML = `<span class="wc-icon">${g}</span>`; else this.logMissingIcon(key);
+        });
     }
 
     updateChartDisplay() {
