@@ -109,6 +109,12 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         hollowHits: {},
         hollowBlocks: {},
         hollowSpecials: {},
+        // Standard deviation (filled symbols) for quick summary display
+        std: {
+            hits: 0,
+            blocks: 0,
+            specials: 0
+        },
         // Combined distributions where hollow counts as filled (for display of hollow+filled)
         totalHits: {},
         totalBlocks: {},
@@ -161,6 +167,9 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         map[x][y] = (map[x][y] || 0) + 1;
     };
 
+    // Accumulators for variance (filled symbols only)
+    let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
+
     for (let i = 0; i < simulationCount; i++) {
         const roll = simulateDiceRoll(pool, facesByColor, isElite);
         results.hits[roll.hits]++;
@@ -206,6 +215,11 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         results.expected.hollowHits += roll.hollowHits;
         results.expected.hollowBlocks += roll.hollowBlocks;
         results.expected.hollowSpecials += roll.hollowSpecials;
+
+        // Sum of squares for variance (filled only)
+        sumSqHits += roll.hits * roll.hits;
+        sumSqBlocks += roll.blocks * roll.blocks;
+        sumSqSpecials += roll.specials * roll.specials;
     }
 
     for (const key of Object.keys(results.hits)) {
@@ -247,6 +261,17 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
     results.expected.hollowBlocks /= simulationCount;
     results.expected.hollowSpecials /= simulationCount;
 
+    // Compute standard deviations for filled symbols
+    const meanH = results.expected.hits;
+    const meanB = results.expected.blocks;
+    const meanS = results.expected.specials;
+    const varH = Math.max(0, (sumSqHits / simulationCount) - (meanH * meanH));
+    const varB = Math.max(0, (sumSqBlocks / simulationCount) - (meanB * meanB));
+    const varS = Math.max(0, (sumSqSpecials / simulationCount) - (meanS * meanS));
+    results.std.hits = Math.sqrt(varH);
+    results.std.blocks = Math.sqrt(varB);
+    results.std.specials = Math.sqrt(varS);
+
     return results;
 }
 
@@ -259,6 +284,11 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         hollowHits: {},
         hollowBlocks: {},
         hollowSpecials: {},
+        std: {
+            hits: 0,
+            blocks: 0,
+            specials: 0
+        },
         totalHits: {},
         totalBlocks: {},
         totalSpecials: {},
@@ -308,6 +338,8 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         map[x][y] = (map[x][y] || 0) + 1;
     };
 
+    let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
+
     for (let i = 0; i < simulationCount; i++) {
         const pre = simulateDiceRoll(pool, facesByColor, false);
         const roll = applyPipelineToAggregate(pre, pipeline);
@@ -352,6 +384,10 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         results.expected.hollowHits += roll.hollowHits;
         results.expected.hollowBlocks += roll.hollowBlocks;
         results.expected.hollowSpecials += roll.hollowSpecials;
+
+        sumSqHits += (roll.hits || 0) * (roll.hits || 0);
+        sumSqBlocks += (roll.blocks || 0) * (roll.blocks || 0);
+        sumSqSpecials += (roll.specials || 0) * (roll.specials || 0);
     }
 
     for (const key of Object.keys(results.hits)) {
@@ -388,6 +424,16 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
     results.expected.hollowHits /= simulationCount;
     results.expected.hollowBlocks /= simulationCount;
     results.expected.hollowSpecials /= simulationCount;
+
+    const meanH = results.expected.hits;
+    const meanB = results.expected.blocks;
+    const meanS = results.expected.specials;
+    const varH = Math.max(0, (sumSqHits / simulationCount) - (meanH * meanH));
+    const varB = Math.max(0, (sumSqBlocks / simulationCount) - (meanB * meanB));
+    const varS = Math.max(0, (sumSqSpecials / simulationCount) - (meanS * meanS));
+    results.std.hits = Math.sqrt(varH);
+    results.std.blocks = Math.sqrt(varB);
+    results.std.specials = Math.sqrt(varS);
 
     return results;
 }

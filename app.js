@@ -65,6 +65,11 @@ class WarcrowCalculator {
         // Initialize Post-processing UI values from current pipeline
         this.initPostProcessingUI();
 
+        // Clear persisted pipeline steps on page load so refresh starts empty
+        try {
+            ['analysis','attacker','defender'].forEach(scope => localStorage.removeItem(`pipeline:${scope}`));
+        } catch {}
+
         // Render pipeline editors
         this.loadPipelinesFromStorage();
         this.renderPipelineEditor('analysis', this.analysisPipeline);
@@ -124,28 +129,7 @@ class WarcrowCalculator {
                 r.addEventListener('change', () => this.updateBivariateDisplay());
             });
         });
-        const attackerElite = document.getElementById('attacker-elite');
-        if (attackerElite) {
-            attackerElite.addEventListener('change', () => {
-                this.hideCombatResults();
-                if (this.isCombatSimulating) {
-                    this.pendingCombatRun = true;
-                } else {
-                    this.scheduleCombatRun();
-                }
-            });
-        }
-        const defenderElite = document.getElementById('defender-elite');
-        if (defenderElite) {
-            defenderElite.addEventListener('change', () => {
-                this.hideCombatResults();
-                if (this.isCombatSimulating) {
-                    this.pendingCombatRun = true;
-                } else {
-                    this.scheduleCombatRun();
-                }
-            });
-        }
+        // Elite checkbox removed; elite functionality is handled via pipeline steps
 
         // No checkbox controls; charts are always present in collapsible sections
 
@@ -316,20 +300,27 @@ class WarcrowCalculator {
             const options = document.createElement('div');
             options.className = 'step-options';
             if (step.type === 'AddSymbols') {
-                const m = window.WARCROW_ICON_MAP || {};
                 const icon = (k, fb) => this.iconSpan(k, fb);
                 options.innerHTML = `
-                    <label class="checkbox-label">${icon('HIT','⚔️')} Hits <input class="form-control form-control--sm" type="number" data-opt="hits" value="${step.delta?.hits || 0}" min="0" step="1" style="width:90px;"></label>
-                    <label class="checkbox-label">${icon('BLOCK','🛡️')} Blocks <input class="form-control form-control--sm" type="number" data-opt="blocks" value="${step.delta?.blocks || 0}" min="0" step="1" style="width:90px;"></label>
-                    <label class="checkbox-label">${icon('SPECIAL','⚡')} Specials <input class="form-control form-control--sm" type="number" data-opt="specials" value="${step.delta?.specials || 0}" min="0" step="1" style="width:90px;"></label>
+                    <label class="checkbox-label" title="Add Hits">
+                        ${icon('HIT','⚔️')}
+                        <input class="form-control form-control--sm" aria-label="Hits" type="number" data-opt="hits" value="${step.delta?.hits || 0}" min="0" step="1" style="width:90px;">
+                    </label>
+                    <label class="checkbox-label" title="Add Blocks">
+                        ${icon('BLOCK','🛡️')}
+                        <input class="form-control form-control--sm" aria-label="Blocks" type="number" data-opt="blocks" value="${step.delta?.blocks || 0}" min="0" step="1" style="width:90px;">
+                    </label>
+                    <label class="checkbox-label" title="Add Specials">
+                        ${icon('SPECIAL','⚡')}
+                        <input class="form-control form-control--sm" aria-label="Specials" type="number" data-opt="specials" value="${step.delta?.specials || 0}" min="0" step="1" style="width:90px;">
+                    </label>
                 `;
             } else if (step.type === 'ElitePromotion') {
-                const m = window.WARCROW_ICON_MAP || {};
                 const icon = (k, fb) => this.iconSpan(k, fb);
                 options.innerHTML = `
-                    <label class="checkbox-label">${icon('HOLLOW_HIT','⭕')} hollow hits <input type="checkbox" data-opt="hollowHits" ${step.symbols?.includes('hollowHits') ? 'checked' : ''}></label>
-                    <label class="checkbox-label">${icon('HOLLOW_BLOCK','⭕')} hollow blocks <input type="checkbox" data-opt="hollowBlocks" ${step.symbols?.includes('hollowBlocks') ? 'checked' : ''}></label>
-                    <label class="checkbox-label">${icon('HOLLOW_SPECIAL','⭕')} hollow specials <input type="checkbox" data-opt="hollowSpecials" ${step.symbols?.includes('hollowSpecials') ? 'checked' : ''}></label>
+                    <label class="checkbox-label" title="Hollow Hits → Hits">${icon('HOLLOW_HIT','⭕')} → ${icon('HIT','⚔️')} <input type="checkbox" data-opt="hollowHits" ${step.symbols?.includes('hollowHits') ? 'checked' : ''}></label>
+                    <label class="checkbox-label" title="Hollow Blocks → Blocks">${icon('HOLLOW_BLOCK','⭕')} → ${icon('BLOCK','🛡️')} <input type="checkbox" data-opt="hollowBlocks" ${step.symbols?.includes('hollowBlocks') ? 'checked' : ''}></label>
+                    <label class="checkbox-label" title="Hollow Specials → Specials">${icon('HOLLOW_SPECIAL','⭕')} → ${icon('SPECIAL','⚡')} <input type="checkbox" data-opt="hollowSpecials" ${step.symbols?.includes('hollowSpecials') ? 'checked' : ''}></label>
                 `;
             } else if (step.type === 'SwitchSymbols') {
                 const m = window.WARCROW_ICON_MAP || {};
@@ -339,13 +330,13 @@ class WarcrowCalculator {
                         of
                     </label>
                     <label class="checkbox-label">
-                        <select class="form-control form-control--sm" data-opt="from" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
-                            <option ${step.from==='hits'?'selected':''} value="hits">${m.HIT || '⚔️'} hits</option>
-                            <option ${step.from==='blocks'?'selected':''} value="blocks">${m.BLOCK || '🛡️'} blocks</option>
-                            <option ${step.from==='specials'?'selected':''} value="specials">${m.SPECIAL || '⚡'} specials</option>
-                            <option ${step.from==='hollowHits'?'selected':''} value="hollowHits">${m.HOLLOW_HIT || '⭕'} hollow hits</option>
-                            <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks">${m.HOLLOW_BLOCK || '⭕'} hollow blocks</option>
-                            <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials">${m.HOLLOW_SPECIAL || '⭕'} hollow specials</option>
+                        <select class="form-control form-control--sm" data-opt="from" aria-label="From symbol" data-wc-symbols="true" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
+                            <option ${step.from==='hits'?'selected':''} value="hits" title="Hits">${m.HIT || '⚔️'}</option>
+                            <option ${step.from==='blocks'?'selected':''} value="blocks" title="Blocks">${m.BLOCK || '🛡️'}</option>
+                            <option ${step.from==='specials'?'selected':''} value="specials" title="Specials">${m.SPECIAL || '⚡'}</option>
+                            <option ${step.from==='hollowHits'?'selected':''} value="hollowHits" title="Hollow Hits">${m.HOLLOW_HIT || '⭕'}</option>
+                            <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks" title="Hollow Blocks">${m.HOLLOW_BLOCK || '⭕'}</option>
+                            <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials" title="Hollow Specials">${m.HOLLOW_SPECIAL || '⭕'}</option>
                         </select>
                     </label>
                     <div class="checkbox-label">→</div>
@@ -354,10 +345,10 @@ class WarcrowCalculator {
                         of
                     </label>
                     <label class="checkbox-label">
-                        <select class="form-control form-control--sm" data-opt="to" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
-                            <option ${step.to==='hits'?'selected':''} value="hits">${m.HIT || '⚔️'} hits</option>
-                            <option ${step.to==='blocks'?'selected':''} value="blocks">${m.BLOCK || '🛡️'} blocks</option>
-                            <option ${step.to==='specials'?'selected':''} value="specials">${m.SPECIAL || '⚡'} specials</option>
+                        <select class="form-control form-control--sm" data-opt="to" aria-label="To symbol" data-wc-symbols="true" style="font-family: 'WarcrowSymbols', var(--font-family-base);">
+                            <option ${step.to==='hits'?'selected':''} value="hits" title="Hits">${m.HIT || '⚔️'}</option>
+                            <option ${step.to==='blocks'?'selected':''} value="blocks" title="Blocks">${m.BLOCK || '🛡️'}</option>
+                            <option ${step.to==='specials'?'selected':''} value="specials" title="Specials">${m.SPECIAL || '⚡'}</option>
                         </select>
                     </label>
                     <label class="checkbox-label">Max groups
@@ -618,15 +609,6 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const isAttackerElite = document.getElementById('attacker-elite')?.checked;
-            const isDefenderElite = document.getElementById('defender-elite')?.checked;
-            // Map checkboxes to elite steps for now (UI migration path)
-            const setElite = (pipeline, enabled) => {
-                const step = pipeline.steps.find(s => s.type === 'ElitePromotion');
-                if (step) step.enabled = !!enabled;
-            };
-            setElite(this.attackerPipeline, !!isAttackerElite);
-            setElite(this.defenderPipeline, !!isDefenderElite);
             const results = await performCombatSimulationWithPipeline(this.attackerPool, this.defenderPool, this.facesByColor, simulationCount, this.attackerPipeline, this.defenderPipeline);
             this.lastCombatSimulationData = results;
             this.combatResultsOutdated = false;
@@ -649,6 +631,7 @@ class WarcrowCalculator {
         this.setAnalysisResultsVisibility(true);
         const summary = document.getElementById('symbol-summary');
         const ex = results?.expected || {};
+        const sd = results?.std || {};
         const safe = (v) => (Number.isFinite(v) ? v : 0);
         const minMax = this.computeMinMax(results);
         const icon = (key, fallback) => this.iconSpan(key, fallback);
@@ -656,7 +639,7 @@ class WarcrowCalculator {
             <div class="symbol-group">
                 <h3>${icon('HIT','⚔️')} Hits</h3>
                 <div class="symbol-stats">
-                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.hits).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.hits).toFixed(2)} ± ${safe(sd.hits).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.hits.min}</span></div>
                     <div class="stat-item"><span class="stat-label">Max</span><span class="stat-value">${minMax.hits.max}</span></div>
                 </div>
@@ -664,7 +647,7 @@ class WarcrowCalculator {
             <div class="symbol-group">
                 <h3>${icon('BLOCK','🛡️')} Blocks</h3>
                 <div class="symbol-stats">
-                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.blocks).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.blocks).toFixed(2)} ± ${safe(sd.blocks).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.blocks.min}</span></div>
                     <div class="stat-item"><span class="stat-label">Max</span><span class="stat-value">${minMax.blocks.max}</span></div>
                 </div>
@@ -672,7 +655,7 @@ class WarcrowCalculator {
             <div class="symbol-group">
                 <h3>${icon('SPECIAL','⚡')} Specials</h3>
                 <div class="symbol-stats">
-                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.specials).toFixed(2)}</span></div>
+                    <div class="stat-item"><span class="stat-label">Expected</span><span class="stat-value">${safe(ex.specials).toFixed(2)} ± ${safe(sd.specials).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Min</span><span class="stat-value">${minMax.specials.min}</span></div>
                     <div class="stat-item"><span class="stat-label">Max</span><span class="stat-value">${minMax.specials.max}</span></div>
                 </div>
@@ -864,9 +847,14 @@ class WarcrowCalculator {
 
     buildCumulativeSeries(map) {
         const { labels, data } = this.buildSeries(map);
-        let running = 0;
-        const cumulative = data.map(v => (running += v));
-        return { labels, data: cumulative };
+        // Tail cumulative: out[i] = sum_{k >= i} data[k]
+        const out = new Array(data.length);
+        let run = 0;
+        for (let i = data.length - 1; i >= 0; i--) {
+            run += data[i];
+            out[i] = run;
+        }
+        return { labels, data: out };
     }
 
     renderAnalysisCharts() {
@@ -904,9 +892,14 @@ class WarcrowCalculator {
         };
 
         const buildAligned = (map, labels) => labels.map(l => map[parseInt(l, 10)] || 0);
-        const cumulativeFrom = (arr) => {
+        const tailCumulativeFrom = (arr) => {
+            const out = new Array(arr.length);
             let run = 0;
-            return arr.map(v => (run += v));
+            for (let i = arr.length - 1; i >= 0; i--) {
+                run += arr[i];
+                out[i] = run;
+            }
+            return out;
         };
 
         const makeDatasets = (filledMap, hollowMap, combinedMap, colorSet, title, mode) => {
@@ -919,27 +912,27 @@ class WarcrowCalculator {
             const datasets = [];
             if (mode === 'filled') {
                 const data = buildAligned(filledMap, labels);
-                const cum = cumulativeFrom([...data]);
+                const tail = tailCumulativeFrom([...data]);
                 datasets.push(
                     { type: 'bar', label: `${title} (filled) %`, data, backgroundColor: colorSet.filled.bg, borderColor: colorSet.filled.border, borderWidth: 1 },
-                    { type: 'line', label: `${title} (filled) cumulative %`, data: cum, borderColor: colorSet.filled.border, backgroundColor: colorSet.filled.border, yAxisID: 'y', tension: 0.2 }
+                    { type: 'line', label: `${title} (filled) cumulative % (≥ x)`, data: tail, borderColor: colorSet.filled.border, backgroundColor: colorSet.filled.border, yAxisID: 'y', tension: 0.2 }
                 );
             }
             else if (mode === 'hollow') {
                 const dataH = buildAligned(hollowMap, labels);
-                const cumH = cumulativeFrom([...dataH]);
+                const tailH = tailCumulativeFrom([...dataH]);
                 datasets.push(
                     { type: 'bar', label: `${title} (hollow) %`, data: dataH, backgroundColor: colorSet.hollow.bg, borderColor: colorSet.hollow.border, borderWidth: 1 },
-                    { type: 'line', label: `${title} (hollow) cumulative %`, data: cumH, borderColor: colorSet.hollow.border, backgroundColor: colorSet.hollow.border, yAxisID: 'y', tension: 0.2 }
+                    { type: 'line', label: `${title} (hollow) cumulative % (≥ x)`, data: tailH, borderColor: colorSet.hollow.border, backgroundColor: colorSet.hollow.border, yAxisID: 'y', tension: 0.2 }
                 );
             }
             else {
                 // both: use proper combined distribution from simulation (not a sum of percentages)
                 const summed = buildAligned(combinedMap || {}, labels);
-                const cumSum = cumulativeFrom([...summed]);
+                const tailSum = tailCumulativeFrom([...summed]);
                 datasets.push(
                     { type: 'bar', label: `${title} (filled + hollow) %`, data: summed, backgroundColor: colorSet.filled.bg, borderColor: colorSet.filled.border, borderWidth: 1 },
-                    { type: 'line', label: `${title} (filled + hollow) cumulative %`, data: cumSum, borderColor: colorSet.filled.border, backgroundColor: colorSet.filled.border, yAxisID: 'y', tension: 0.2 }
+                    { type: 'line', label: `${title} (filled + hollow) cumulative % (≥ x)`, data: tailSum, borderColor: colorSet.filled.border, backgroundColor: colorSet.filled.border, yAxisID: 'y', tension: 0.2 }
                 );
             }
 
@@ -1112,7 +1105,7 @@ class WarcrowCalculator {
                 labels: woundsA.labels,
                 datasets: [
                     { type: 'bar', label: 'Wounds (Attacker → Defender) %', data: woundsA.data, backgroundColor: 'rgba(33, 128, 141, 0.35)', borderColor: 'rgba(33, 128, 141, 1)', borderWidth: 1 },
-                    { type: 'line', label: 'Cumulative % (Attacker)', data: cumA.data, borderColor: 'rgba(33, 128, 141, 1)', backgroundColor: 'rgba(33, 128, 141, 1)', yAxisID: 'y', tension: 0.2 }
+                    { type: 'line', label: 'Cumulative % (≥ x)', data: cumA.data, borderColor: 'rgba(33, 128, 141, 1)', backgroundColor: 'rgba(33, 128, 141, 1)', yAxisID: 'y', tension: 0.2 }
                 ]
             },
             options: {
@@ -1137,7 +1130,7 @@ class WarcrowCalculator {
                 labels: woundsD.labels,
                 datasets: [
                     { type: 'bar', label: 'Wounds (Defender → Attacker) %', data: woundsD.data, backgroundColor: 'rgba(192, 21, 47, 0.25)', borderColor: 'rgba(192, 21, 47, 1)', borderWidth: 1 },
-                    { type: 'line', label: 'Cumulative % (Defender)', data: cumD.data, borderColor: 'rgba(192, 21, 47, 1)', backgroundColor: 'rgba(192, 21, 47, 1)', yAxisID: 'y', tension: 0.2 }
+                    { type: 'line', label: 'Cumulative % (≥ x)', data: cumD.data, borderColor: 'rgba(192, 21, 47, 1)', backgroundColor: 'rgba(192, 21, 47, 1)', yAxisID: 'y', tension: 0.2 }
                 ]
             },
             options: {
@@ -1166,7 +1159,7 @@ class WarcrowCalculator {
                     labels: sA.labels,
                     datasets: [
                         { type: 'bar', label: 'Attacker Specials %', data: sA.data, backgroundColor: 'rgba(234,179,8,0.35)', borderColor: 'rgba(234,179,8,1)', borderWidth: 1 },
-                        { type: 'line', label: 'Cumulative % (Attacker)', data: cA.data, borderColor: 'rgba(234,179,8,1)', backgroundColor: 'rgba(234,179,8,1)', yAxisID: 'y', tension: 0.2 }
+                        { type: 'line', label: 'Cumulative % (≥ x)', data: cA.data, borderColor: 'rgba(234,179,8,1)', backgroundColor: 'rgba(234,179,8,1)', yAxisID: 'y', tension: 0.2 }
                     ]
                 },
                 options: {
@@ -1194,7 +1187,7 @@ class WarcrowCalculator {
                     labels: sD.labels,
                     datasets: [
                         { type: 'bar', label: 'Defender Specials %', data: sD.data, backgroundColor: 'rgba(41,150,161,0.25)', borderColor: 'rgba(41,150,161,1)', borderWidth: 1 },
-                        { type: 'line', label: 'Cumulative % (Defender)', data: cD.data, borderColor: 'rgba(41,150,161,1)', backgroundColor: 'rgba(41,150,161,1)', yAxisID: 'y', tension: 0.2 }
+                        { type: 'line', label: 'Cumulative % (≥ x)', data: cD.data, borderColor: 'rgba(41,150,161,1)', backgroundColor: 'rgba(41,150,161,1)', yAxisID: 'y', tension: 0.2 }
                     ]
                 },
                 options: {

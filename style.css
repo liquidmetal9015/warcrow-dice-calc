@@ -501,6 +501,13 @@ select.form-control {
   padding-right: var(--space-32);
 }
 
+/* Ensure custom glyphs render in symbol-only selects */
+select[data-wc-symbols="true"],
+select[data-wc-symbols="true"] option {
+  font-family: 'WarcrowSymbols', 'FKGroteskNeue', sans-serif;
+  font-variant-ligatures: none;
+}
+
 /* Add a dark mode specific caret */
 @media (prefers-color-scheme: dark) {
   select.form-control {
@@ -827,29 +834,7 @@ select.form-control {
 }
 
 /* Elite Toggle */
-.elite-toggle {
-  display: flex;
-  align-items: center;
-}
-
-.elite-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  cursor: pointer;
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-}
-
-.elite-checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--color-primary);
-}
-
-.elite-text {
-  font-size: var(--font-size-sm);
-}
+/* Elite checkbox removed; handled via pipeline UI */
 
 /* Dice Pool Section */
 .dice-pool-section {
@@ -908,6 +893,13 @@ select.form-control {
   font-size: var(--font-size-2xl);
   color: white;
   box-shadow: var(--shadow-sm);
+}
+
+/* Make dice symbols larger while keeping selector squares compact */
+.dice-selector .dice-icon {
+  width: 48px;
+  height: 48px;
+  font-size: 28px;
 }
 
 .red-die { background-color: #DC2626; }
@@ -1719,6 +1711,13 @@ details.accordion[open] > summary::after {
     font-size: var(--font-size-xl);
   }
 
+  /* Keep selector squares compact on smaller screens as well */
+  .dice-selector .dice-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+  }
+
   .symbol-summary {
     grid-template-columns: 1fr;
   }
@@ -1795,10 +1794,7 @@ details.accordion[open] > summary::after {
 }
 
 /* Elite checkbox styling */
-.elite-checkbox:checked + .elite-text {
-  color: var(--color-success);
-  font-weight: var(--font-weight-semibold);
-}
+/* Elite checkbox removed */
 
 /* Enhanced visual hierarchy */
 .symbol-group h3 {
