@@ -104,6 +104,26 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         totalHits: {},
         totalBlocks: {},
         totalSpecials: {},
+        // Bivariate (joint) distributions
+        jointHitsSpecialsFilled: {},   // x: hits (filled), y: specials (filled)
+        jointBlocksSpecialsFilled: {}, // x: blocks (filled), y: specials (filled)
+        jointHitsSpecialsHollow: {},   // x: hollowHits, y: hollowSpecials
+        jointBlocksSpecialsHollow: {}, // x: hollowBlocks, y: hollowSpecials
+        jointHitsSpecialsTotal: {},    // x: totalHits (filled+hollow), y: totalSpecials (filled+hollow)
+        jointBlocksSpecialsTotal: {},  // x: totalBlocks (filled+hollow), y: totalSpecials (filled+hollow)
+        // Raw samples for Plotly histogram2d
+        samplesHSFilledX: [],
+        samplesHSFilledY: [],
+        samplesBSFilledX: [],
+        samplesBSFilledY: [],
+        samplesHSHollowX: [],
+        samplesHSHollowY: [],
+        samplesBSHollowX: [],
+        samplesBSHollowY: [],
+        samplesHSTotalX: [],
+        samplesHSTotalY: [],
+        samplesBSTotalX: [],
+        samplesBSTotalY: [],
         expected: {
             hits: 0,
             blocks: 0,
@@ -127,6 +147,11 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         results.totalSpecials[i] = 0;
     }
 
+    const incJoint = (map, x, y) => {
+        if (!map[x]) map[x] = {};
+        map[x][y] = (map[x][y] || 0) + 1;
+    };
+
     for (let i = 0; i < simulationCount; i++) {
         const roll = simulateDiceRoll(pool, facesByColor, isElite);
         results.hits[roll.hits]++;
@@ -143,6 +168,28 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         results.totalHits[totalHits]++;
         results.totalBlocks[totalBlocks]++;
         results.totalSpecials[totalSpecials]++;
+
+        // Joint distributions per roll
+        incJoint(results.jointHitsSpecialsFilled, roll.hits, roll.specials);
+        incJoint(results.jointBlocksSpecialsFilled, roll.blocks, roll.specials);
+        incJoint(results.jointHitsSpecialsHollow, roll.hollowHits, roll.hollowSpecials);
+        incJoint(results.jointBlocksSpecialsHollow, roll.hollowBlocks, roll.hollowSpecials);
+        incJoint(results.jointHitsSpecialsTotal, totalHits, totalSpecials);
+        incJoint(results.jointBlocksSpecialsTotal, totalBlocks, totalSpecials);
+
+        // Raw samples for Plotly
+        results.samplesHSFilledX.push(roll.hits);
+        results.samplesHSFilledY.push(roll.specials);
+        results.samplesBSFilledX.push(roll.blocks);
+        results.samplesBSFilledY.push(roll.specials);
+        results.samplesHSHollowX.push(roll.hollowHits);
+        results.samplesHSHollowY.push(roll.hollowSpecials);
+        results.samplesBSHollowX.push(roll.hollowBlocks);
+        results.samplesBSHollowY.push(roll.hollowSpecials);
+        results.samplesHSTotalX.push(totalHits);
+        results.samplesHSTotalY.push(totalSpecials);
+        results.samplesBSTotalX.push(totalBlocks);
+        results.samplesBSTotalY.push(totalSpecials);
 
         results.expected.hits += roll.hits;
         results.expected.blocks += roll.blocks;
@@ -167,6 +214,22 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         results.totalBlocks[key] = (results.totalBlocks[key] / simulationCount) * 100;
         results.totalSpecials[key] = (results.totalSpecials[key] / simulationCount) * 100;
     }
+
+    // Normalize joint distributions to percentages
+    const normalizeJoint = (map) => {
+        for (const x of Object.keys(map)) {
+            const row = map[x];
+            for (const y of Object.keys(row)) {
+                row[y] = (row[y] / simulationCount) * 100;
+            }
+        }
+    };
+    normalizeJoint(results.jointHitsSpecialsFilled);
+    normalizeJoint(results.jointBlocksSpecialsFilled);
+    normalizeJoint(results.jointHitsSpecialsHollow);
+    normalizeJoint(results.jointBlocksSpecialsHollow);
+    normalizeJoint(results.jointHitsSpecialsTotal);
+    normalizeJoint(results.jointBlocksSpecialsTotal);
 
     results.expected.hits /= simulationCount;
     results.expected.blocks /= simulationCount;
@@ -195,6 +258,8 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
             woundsDefender: 0
         },
         attackerWinRate: 0,
+        attackerTieRate: 0,
+        attackerLossRate: 0,
         timestamp: new Date().toLocaleTimeString()
     };
 
@@ -206,6 +271,8 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
     }
 
     let attackerWins = 0;
+    let attackerTies = 0;
+    let attackerLosses = 0;
     for (let i = 0; i < simulationCount; i++) {
         const attackerRoll = simulateDiceRoll(attackerPool, facesByColor, isAttackerElite);
         const defenderRoll = simulateDiceRoll(defenderPool, facesByColor, isDefenderElite);
@@ -220,6 +287,8 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
         results.defenderSpecialsDist[defenderRoll.specials]++;
 
         if (woundsA > woundsD) attackerWins++;
+        else if (woundsA === woundsD) attackerTies++;
+        else attackerLosses++;
 
         results.expected.attackerHits += attackerRoll.hits;
         results.expected.attackerSpecials += attackerRoll.specials;
@@ -247,6 +316,8 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
     results.expected.woundsAttacker /= simulationCount;
     results.expected.woundsDefender /= simulationCount;
     results.attackerWinRate = (attackerWins / simulationCount) * 100;
+    results.attackerTieRate = (attackerTies / simulationCount) * 100;
+    results.attackerLossRate = (attackerLosses / simulationCount) * 100;
 
     return results;
 }

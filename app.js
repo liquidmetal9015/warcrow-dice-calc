@@ -100,6 +100,12 @@ class WarcrowCalculator {
                 r.addEventListener('change', () => this.updateChartDisplay());
             });
         });
+        // Bivariate segmented controls
+        ['analysis-mode-hs', 'analysis-mode-bs'].forEach(name => {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+                r.addEventListener('change', () => this.updateBivariateDisplay());
+            });
+        });
         const attackerElite = document.getElementById('attacker-elite');
         if (attackerElite) {
             attackerElite.addEventListener('change', () => {
@@ -419,6 +425,8 @@ class WarcrowCalculator {
                 </div>
                 <div class="stat-group outcome-stats"><h3>Outcome</h3>
                     <div class="stat-item"><span class="stat-label">Attacker Win Rate</span><span class="stat-value">${safe(results.attackerWinRate).toFixed(1)}%</span></div>
+                    <div class="stat-item"><span class="stat-label">Attacker Tie Rate</span><span class="stat-value">${safe(results.attackerTieRate).toFixed(1)}%</span></div>
+                    <div class="stat-item"><span class="stat-label">Attacker Loss Rate</span><span class="stat-value">${safe(results.attackerLossRate).toFixed(1)}%</span></div>
                     <div class="stat-item"><span class="stat-label">Expected Wounds (Attacker → Defender)</span><span class="stat-value">${safe(ex.woundsAttacker).toFixed(2)}</span></div>
                     <div class="stat-item"><span class="stat-label">Expected Wounds (Defender → Attacker)</span><span class="stat-value">${safe(ex.woundsDefender).toFixed(2)}</span></div>
                 </div>
@@ -473,6 +481,11 @@ class WarcrowCalculator {
     updateChartDisplay() {
         if (!this.lastSimulationData) return;
         this.renderAnalysisCharts();
+    }
+
+    updateBivariateDisplay() {
+        if (!this.lastSimulationData) return;
+        this.renderBivariateCharts();
     }
 
     updateRunButtonsAvailability() {
@@ -620,6 +633,137 @@ class WarcrowCalculator {
         this.ensureChart('chart-hits', makeDatasets(this.lastSimulationData.hits, this.lastSimulationData.hollowHits, this.lastSimulationData.totalHits, colors.hits, 'Hits', modeHits), 'Count');
         this.ensureChart('chart-blocks', makeDatasets(this.lastSimulationData.blocks, this.lastSimulationData.hollowBlocks, this.lastSimulationData.totalBlocks, colors.blocks, 'Blocks', modeBlocks), 'Count');
         this.ensureChart('chart-specials', makeDatasets(this.lastSimulationData.specials, this.lastSimulationData.hollowSpecials, this.lastSimulationData.totalSpecials, colors.specials, 'Specials', modeSpecials), 'Count');
+
+        // Also render bivariate heatmaps
+        this.renderBivariateCharts();
+    }
+
+    ensurePlotlyHeatmap(divId, jointMap, xLabel, yLabel) {
+        const el = document.getElementById(divId);
+        if (!el || !jointMap) return;
+
+        // Build z matrix (percent) and cumulative-at-least matrix as customdata
+        const xKeys = Object.keys(jointMap).map(k => parseInt(k, 10)).filter(n => !Number.isNaN(n));
+        const maxX = Math.max(0, ...(xKeys.length ? xKeys : [0]));
+        let maxY = 0;
+        for (const x of xKeys) {
+            const yKeys = Object.keys(jointMap[x] || {}).map(k => parseInt(k, 10)).filter(n => !Number.isNaN(n));
+            if (yKeys.length) maxY = Math.max(maxY, Math.max(...yKeys));
+        }
+        const width = maxX + 1;
+        const height = maxY + 1;
+        const z = Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+        for (let x = 0; x <= maxX; x++) {
+            const row = jointMap[x] || {};
+            for (let y = 0; y <= maxY; y++) {
+                const v = row[y] || 0;
+                // Plotly heatmap expects z as rows along y, columns along x
+                z[y][x] = v;
+            }
+        }
+        // Cumulative at least: cum[y][x] = sum_{yy>=y, xx>=x} z[yy][xx]
+        const cum = Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+        for (let y = height - 1; y >= 0; y--) {
+            for (let x = width - 1; x >= 0; x--) {
+                const self = z[y][x];
+                const right = x + 1 < width ? cum[y][x + 1] : 0;
+                const down = y + 1 < height ? cum[y + 1][x] : 0;
+                const diag = (x + 1 < width && y + 1 < height) ? cum[y + 1][x + 1] : 0;
+                cum[y][x] = self + right + down - diag;
+            }
+        }
+
+        // Colors aligned with app palette (dark low values to avoid bright whites)
+        const colorscale = [
+            [0, 'rgb(19,52,59)'],       // slate-900
+            [0.25, 'rgb(41,150,161)'],  // teal-800
+            [0.5, 'rgb(33,128,141)'],   // teal-500
+            [0.75, 'rgb(45,166,178)'],  // teal-400
+            [1, 'rgb(50,184,198)']      // teal-300
+        ];
+
+        // Read theme colors from CSS variables
+        const rs = getComputedStyle(document.documentElement);
+        const textColor = (rs.getPropertyValue('--color-text') || '#333').trim();
+        const borderColor = (rs.getPropertyValue('--color-border') || 'rgba(0,0,0,0.2)').trim();
+
+        const trace = {
+            type: 'heatmap',
+            x: Array.from({ length: width }, (_, i) => i),
+            y: Array.from({ length: height }, (_, i) => i),
+            z,
+            customdata: cum,
+            hovertemplate: `${xLabel}=%{x}<br>${yLabel}=%{y}<br>P=%{z:.2f}%<br>Cum P(≥ %{x}, ≥ %{y})=%{customdata:.2f}%<extra></extra>`,
+            colorscale,
+            colorbar: {
+                title: { text: 'Probability %', side: 'right' },
+                tickcolor: textColor,
+                tickfont: { color: textColor },
+                titlefont: { color: textColor },
+                thickness: 12
+            },
+            zmin: 0,
+            zauto: true
+        };
+
+        // Ensure the plot fills its container
+        const container = el.parentElement;
+        if (container) container.style.overflow = 'hidden';
+        el.style.width = '100%';
+        el.style.height = '100%';
+
+        const layout = {
+            autosize: true,
+            margin: { l: 44, r: 12, t: 8, b: 44 },
+            xaxis: {
+                title: { text: xLabel, font: { color: textColor } },
+                dtick: 1,
+                rangemode: 'tozero',
+                tickfont: { color: textColor },
+                gridcolor: borderColor,
+                zerolinecolor: borderColor
+            },
+            yaxis: {
+                title: { text: yLabel, font: { color: textColor } },
+                dtick: 1,
+                rangemode: 'tozero',
+                tickfont: { color: textColor },
+                gridcolor: borderColor,
+                zerolinecolor: borderColor
+            },
+            font: { color: textColor },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            dragmode: false
+        };
+        const config = { displayModeBar: false, responsive: true, staticPlot: false, scrollZoom: false, doubleClick: false };
+
+        if (el.data) {
+            Plotly.react(el, [trace], layout, config);
+        } else {
+            Plotly.newPlot(el, [trace], layout, config);
+        }
+    }
+
+    renderBivariateCharts() {
+        if (!this.lastSimulationData) return;
+        const modeHS = (document.querySelector('input[name="analysis-mode-hs"]:checked')?.value) || 'filled';
+        const modeBS = (document.querySelector('input[name="analysis-mode-bs"]:checked')?.value) || 'filled';
+
+        // Pick joint maps for selected mode
+        const pickHSMap = () => {
+            if (modeHS === 'hollow') return this.lastSimulationData.jointHitsSpecialsHollow;
+            if (modeHS === 'both') return this.lastSimulationData.jointHitsSpecialsTotal;
+            return this.lastSimulationData.jointHitsSpecialsFilled;
+        };
+        const pickBSMap = () => {
+            if (modeBS === 'hollow') return this.lastSimulationData.jointBlocksSpecialsHollow;
+            if (modeBS === 'both') return this.lastSimulationData.jointBlocksSpecialsTotal;
+            return this.lastSimulationData.jointBlocksSpecialsFilled;
+        };
+
+        this.ensurePlotlyHeatmap('chart-hits-vs-specials', pickHSMap() || {}, 'Hits', 'Specials');
+        this.ensurePlotlyHeatmap('chart-blocks-vs-specials', pickBSMap() || {}, 'Blocks', 'Specials');
     }
 
     destroyChart(id) {
@@ -752,9 +896,9 @@ class WarcrowCalculator {
 
     setAnalysisResultsVisibility(visible) {
         const summary = document.getElementById('symbol-summary');
-        const chartSection = document.querySelector('#analysis-tab .chart-section');
+        const sections = document.querySelectorAll('#analysis-tab .chart-section');
         if (summary) summary.classList.toggle('hidden', !visible);
-        if (chartSection) chartSection.classList.toggle('hidden', !visible);
+        sections.forEach(sec => sec.classList.toggle('hidden', !visible));
     }
 
     setCombatResultsVisibility(visible) {

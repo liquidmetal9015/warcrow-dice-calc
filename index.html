@@ -9,6 +9,8 @@
     <title>Warcrow Calculator</title>
     <link rel="stylesheet" href="style.css?v=2">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -166,6 +168,44 @@
                                 </div>
                                 <div class="chart-container" style="position: relative; height: 240px; width: 100%;">
                                     <canvas id="chart-specials"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bivariate Distributions -->
+                    <div class="chart-section" style="margin-top: 24px;">
+                        <h3>Bivariate Distributions</h3>
+                        <div id="analysis-charts-2d">
+                            <div class="chart-block">
+                                <div class="chart-controls">
+                                    <div class="segmented-control">
+                                        <input type="radio" id="mode-hs-filled" name="analysis-mode-hs" value="filled" checked>
+                                        <label for="mode-hs-filled">filled</label>
+                                        <input type="radio" id="mode-hs-hollow" name="analysis-mode-hs" value="hollow">
+                                        <label for="mode-hs-hollow">hollow</label>
+                                        <input type="radio" id="mode-hs-both" name="analysis-mode-hs" value="both">
+                                        <label for="mode-hs-both">hollow+filled</label>
+                                    </div>
+                                </div>
+                                <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                                    <div id="chart-hits-vs-specials"></div>
+                                </div>
+                            </div>
+
+                            <div class="chart-block" style="margin-top: 16px;">
+                                <div class="chart-controls">
+                                    <div class="segmented-control">
+                                        <input type="radio" id="mode-bs-filled" name="analysis-mode-bs" value="filled" checked>
+                                        <label for="mode-bs-filled">filled</label>
+                                        <input type="radio" id="mode-bs-hollow" name="analysis-mode-bs" value="hollow">
+                                        <label for="mode-bs-hollow">hollow</label>
+                                        <input type="radio" id="mode-bs-both" name="analysis-mode-bs" value="both">
+                                        <label for="mode-bs-both">hollow+filled</label>
+                                    </div>
+                                </div>
+                                <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                                    <div id="chart-blocks-vs-specials"></div>
                                 </div>
                             </div>
                         </div>
