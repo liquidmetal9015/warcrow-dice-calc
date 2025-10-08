@@ -1,0 +1,64 @@
+{
+  "RED": [
+    ["HIT"],
+    ["HIT"],
+    ["HIT"],
+    ["HIT"],
+    ["HIT", "HIT"],
+    ["HIT", "HIT"],
+    ["SPECIAL", "HOLLOW_HIT"],
+    ["SPECIAL", "HIT"]
+  ],
+  "ORANGE": [
+    ["HIT"],
+    ["SPECIAL"],
+    ["HOLLOW_SPECIAL"],
+    ["HIT"],
+    ["HIT", "SPECIAL"],
+    ["HIT", "SPECIAL"],
+    ["HIT", "HOLLOW_SPECIAL"],
+    ["HOLLOW_HIT", "SPECIAL"]
+  ],
+  "YELLOW": [
+    ["HOLLOW_SPECIAL"],
+    ["HOLLOW_HIT", "SPECIAL"],
+    ["SPECIAL"],
+    ["SPECIAL", "SPECIAL"],
+    ["HIT"],
+    ["HIT", "SPECIAL"],
+    ["HIT", "SPECIAL"],
+    ["HOLLOW_HIT", "SPECIAL"]
+  ],
+  "GREEN": [
+    ["BLOCK"],
+    ["BLOCK"],
+    ["BLOCK"],
+    ["BLOCK", "BLOCK"],
+    ["BLOCK"],
+    ["BLOCK"],
+    ["SPECIAL"],
+    ["SPECIAL", "HOLLOW_BLOCK"]
+  ],
+  "BLUE": [
+    ["SPECIAL"],
+    ["SPECIAL"],
+    ["HOLLOW_SPECIAL"],
+    ["BLOCK"],
+    ["BLOCK"],
+    ["SPECIAL", "BLOCK"],
+    ["SPECIAL", "HOLLOW_BLOCK"],
+    ["BLOCK", "HOLLOW_SPECIAL"]
+  ],
+  "BLACK": [
+    ["SPECIAL", "SPECIAL"],
+    ["SPECIAL", "BLOCK"],
+    ["SPECIAL", "HOLLOW_BLOCK"],
+    ["SPECIAL", "HOLLOW_BLOCK"],
+    ["SPECIAL"],
+    ["SPECIAL"],
+    ["BLOCK"],
+    ["HOLLOW_SPECIAL"]
+  ]
+}
+
+
