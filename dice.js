@@ -72,7 +72,7 @@ export function countSymbolsFromFace(face, isElite) {
     return result;
 }
 
-export function simulateDiceRoll(pool, facesByColor, isElite) {
+export function simulateDiceRoll(pool, facesByColor, isElite, rng = Math.random) {
     const aggregate = {
         hits: 0,
         blocks: 0,
@@ -86,7 +86,7 @@ export function simulateDiceRoll(pool, facesByColor, isElite) {
         const colorKey = normalizeColor(color);
         if (!facesByColor[colorKey]) continue;
         for (let i = 0; i < count; i++) {
-            const faceIndex = Math.floor(Math.random() * 8);
+            const faceIndex = Math.floor(rng() * 8);
             const face = facesByColor[colorKey][faceIndex];
             const rolled = countSymbolsFromFace(face, false);
             aggregate.hits += rolled.hits;
@@ -101,7 +101,7 @@ export function simulateDiceRoll(pool, facesByColor, isElite) {
     return aggregate;
 }
 
-export async function performMonteCarloSimulation(pool, facesByColor, simulationCount, isElite) {
+export async function performMonteCarloSimulation(pool, facesByColor, simulationCount, isElite, rng = Math.random) {
     const results = {
         hits: {},
         blocks: {},
@@ -126,19 +126,6 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         jointBlocksSpecialsHollow: {}, // x: hollowBlocks, y: hollowSpecials
         jointHitsSpecialsTotal: {},    // x: totalHits (filled+hollow), y: totalSpecials (filled+hollow)
         jointBlocksSpecialsTotal: {},  // x: totalBlocks (filled+hollow), y: totalSpecials (filled+hollow)
-        // Raw samples for Plotly histogram2d
-        samplesHSFilledX: [],
-        samplesHSFilledY: [],
-        samplesBSFilledX: [],
-        samplesBSFilledY: [],
-        samplesHSHollowX: [],
-        samplesHSHollowY: [],
-        samplesBSHollowX: [],
-        samplesBSHollowY: [],
-        samplesHSTotalX: [],
-        samplesHSTotalY: [],
-        samplesBSTotalX: [],
-        samplesBSTotalY: [],
         expected: {
             hits: 0,
             blocks: 0,
@@ -150,17 +137,6 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         timestamp: new Date().toLocaleTimeString()
     };
 
-    for (let i = 0; i <= 50; i++) {
-        results.hits[i] = 0;
-        results.blocks[i] = 0;
-        results.specials[i] = 0;
-        results.hollowHits[i] = 0;
-        results.hollowBlocks[i] = 0;
-        results.hollowSpecials[i] = 0;
-        results.totalHits[i] = 0;
-        results.totalBlocks[i] = 0;
-        results.totalSpecials[i] = 0;
-    }
 
     const incJoint = (map, x, y) => {
         if (!map[x]) map[x] = {};
@@ -171,21 +147,21 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
     let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
 
     for (let i = 0; i < simulationCount; i++) {
-        const roll = simulateDiceRoll(pool, facesByColor, isElite);
-        results.hits[roll.hits]++;
-        results.blocks[roll.blocks]++;
-        results.specials[roll.specials]++;
-        results.hollowHits[roll.hollowHits]++;
-        results.hollowBlocks[roll.hollowBlocks]++;
-        results.hollowSpecials[roll.hollowSpecials]++;
+        const roll = simulateDiceRoll(pool, facesByColor, isElite, rng);
+        results.hits[roll.hits] = (results.hits[roll.hits] || 0) + 1;
+        results.blocks[roll.blocks] = (results.blocks[roll.blocks] || 0) + 1;
+        results.specials[roll.specials] = (results.specials[roll.specials] || 0) + 1;
+        results.hollowHits[roll.hollowHits] = (results.hollowHits[roll.hollowHits] || 0) + 1;
+        results.hollowBlocks[roll.hollowBlocks] = (results.hollowBlocks[roll.hollowBlocks] || 0) + 1;
+        results.hollowSpecials[roll.hollowSpecials] = (results.hollowSpecials[roll.hollowSpecials] || 0) + 1;
 
         // Combined totals per roll
         const totalHits = roll.hits + roll.hollowHits;
         const totalBlocks = roll.blocks + roll.hollowBlocks;
         const totalSpecials = roll.specials + roll.hollowSpecials;
-        results.totalHits[totalHits]++;
-        results.totalBlocks[totalBlocks]++;
-        results.totalSpecials[totalSpecials]++;
+        results.totalHits[totalHits] = (results.totalHits[totalHits] || 0) + 1;
+        results.totalBlocks[totalBlocks] = (results.totalBlocks[totalBlocks] || 0) + 1;
+        results.totalSpecials[totalSpecials] = (results.totalSpecials[totalSpecials] || 0) + 1;
 
         // Joint distributions per roll
         incJoint(results.jointHitsSpecialsFilled, roll.hits, roll.specials);
@@ -194,20 +170,6 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
         incJoint(results.jointBlocksSpecialsHollow, roll.hollowBlocks, roll.hollowSpecials);
         incJoint(results.jointHitsSpecialsTotal, totalHits, totalSpecials);
         incJoint(results.jointBlocksSpecialsTotal, totalBlocks, totalSpecials);
-
-        // Raw samples for Plotly
-        results.samplesHSFilledX.push(roll.hits);
-        results.samplesHSFilledY.push(roll.specials);
-        results.samplesBSFilledX.push(roll.blocks);
-        results.samplesBSFilledY.push(roll.specials);
-        results.samplesHSHollowX.push(roll.hollowHits);
-        results.samplesHSHollowY.push(roll.hollowSpecials);
-        results.samplesBSHollowX.push(roll.hollowBlocks);
-        results.samplesBSHollowY.push(roll.hollowSpecials);
-        results.samplesHSTotalX.push(totalHits);
-        results.samplesHSTotalY.push(totalSpecials);
-        results.samplesBSTotalX.push(totalBlocks);
-        results.samplesBSTotalY.push(totalSpecials);
 
         results.expected.hits += roll.hits;
         results.expected.blocks += roll.blocks;
@@ -276,7 +238,7 @@ export async function performMonteCarloSimulation(pool, facesByColor, simulation
 }
 
 // New: pipeline-based Monte Carlo (post-processing after each roll)
-export async function performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline) {
+export async function performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline, rng = Math.random) {
     const results = {
         hits: {},
         blocks: {},
@@ -298,18 +260,6 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         jointBlocksSpecialsHollow: {},
         jointHitsSpecialsTotal: {},
         jointBlocksSpecialsTotal: {},
-        samplesHSFilledX: [],
-        samplesHSFilledY: [],
-        samplesBSFilledX: [],
-        samplesBSFilledY: [],
-        samplesHSHollowX: [],
-        samplesHSHollowY: [],
-        samplesBSHollowX: [],
-        samplesBSHollowY: [],
-        samplesHSTotalX: [],
-        samplesHSTotalY: [],
-        samplesBSTotalX: [],
-        samplesBSTotalY: [],
         expected: {
             hits: 0,
             blocks: 0,
@@ -321,17 +271,6 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         timestamp: new Date().toLocaleTimeString()
     };
 
-    for (let i = 0; i <= 50; i++) {
-        results.hits[i] = 0;
-        results.blocks[i] = 0;
-        results.specials[i] = 0;
-        results.hollowHits[i] = 0;
-        results.hollowBlocks[i] = 0;
-        results.hollowSpecials[i] = 0;
-        results.totalHits[i] = 0;
-        results.totalBlocks[i] = 0;
-        results.totalSpecials[i] = 0;
-    }
 
     const incJoint = (map, x, y) => {
         if (!map[x]) map[x] = {};
@@ -341,22 +280,22 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
     let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
 
     for (let i = 0; i < simulationCount; i++) {
-        const pre = simulateDiceRoll(pool, facesByColor, false);
+        const pre = simulateDiceRoll(pool, facesByColor, false, rng);
         const roll = applyPipelineToAggregate(pre, pipeline);
 
-        results.hits[roll.hits]++;
-        results.blocks[roll.blocks]++;
-        results.specials[roll.specials]++;
-        results.hollowHits[roll.hollowHits]++;
-        results.hollowBlocks[roll.hollowBlocks]++;
-        results.hollowSpecials[roll.hollowSpecials]++;
+        results.hits[roll.hits] = (results.hits[roll.hits] || 0) + 1;
+        results.blocks[roll.blocks] = (results.blocks[roll.blocks] || 0) + 1;
+        results.specials[roll.specials] = (results.specials[roll.specials] || 0) + 1;
+        results.hollowHits[roll.hollowHits] = (results.hollowHits[roll.hollowHits] || 0) + 1;
+        results.hollowBlocks[roll.hollowBlocks] = (results.hollowBlocks[roll.hollowBlocks] || 0) + 1;
+        results.hollowSpecials[roll.hollowSpecials] = (results.hollowSpecials[roll.hollowSpecials] || 0) + 1;
 
         const totalHits = (roll.hits || 0) + (roll.hollowHits || 0);
         const totalBlocks = (roll.blocks || 0) + (roll.hollowBlocks || 0);
         const totalSpecials = (roll.specials || 0) + (roll.hollowSpecials || 0);
-        results.totalHits[totalHits]++;
-        results.totalBlocks[totalBlocks]++;
-        results.totalSpecials[totalSpecials]++;
+        results.totalHits[totalHits] = (results.totalHits[totalHits] || 0) + 1;
+        results.totalBlocks[totalBlocks] = (results.totalBlocks[totalBlocks] || 0) + 1;
+        results.totalSpecials[totalSpecials] = (results.totalSpecials[totalSpecials] || 0) + 1;
 
         incJoint(results.jointHitsSpecialsFilled, roll.hits, roll.specials);
         incJoint(results.jointBlocksSpecialsFilled, roll.blocks, roll.specials);
@@ -364,19 +303,6 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
         incJoint(results.jointBlocksSpecialsHollow, roll.hollowBlocks, roll.hollowSpecials);
         incJoint(results.jointHitsSpecialsTotal, totalHits, totalSpecials);
         incJoint(results.jointBlocksSpecialsTotal, totalBlocks, totalSpecials);
-
-        results.samplesHSFilledX.push(roll.hits);
-        results.samplesHSFilledY.push(roll.specials);
-        results.samplesBSFilledX.push(roll.blocks);
-        results.samplesBSFilledY.push(roll.specials);
-        results.samplesHSHollowX.push(roll.hollowHits);
-        results.samplesHSHollowY.push(roll.hollowSpecials);
-        results.samplesBSHollowX.push(roll.hollowBlocks);
-        results.samplesBSHollowY.push(roll.hollowSpecials);
-        results.samplesHSTotalX.push(totalHits);
-        results.samplesHSTotalY.push(totalSpecials);
-        results.samplesBSTotalX.push(totalBlocks);
-        results.samplesBSTotalY.push(totalSpecials);
 
         results.expected.hits += roll.hits;
         results.expected.blocks += roll.blocks;
@@ -438,7 +364,7 @@ export async function performMonteCarloSimulationWithPipeline(pool, facesByColor
     return results;
 }
 
-export async function performCombatSimulation(attackerPool, defenderPool, facesByColor, simulationCount, isAttackerElite, isDefenderElite) {
+export async function performCombatSimulation(attackerPool, defenderPool, facesByColor, simulationCount, isAttackerElite, isDefenderElite, rng = Math.random) {
     const results = {
         woundsAttacker: {}, // Attacker → Defender
         woundsDefender: {}, // Defender → Attacker
@@ -460,28 +386,22 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
         timestamp: new Date().toLocaleTimeString()
     };
 
-    for (let i = 0; i <= 50; i++) {
-        results.woundsAttacker[i] = 0;
-        results.woundsDefender[i] = 0;
-        results.attackerSpecialsDist[i] = 0;
-        results.defenderSpecialsDist[i] = 0;
-    }
 
     let attackerWins = 0;
     let attackerTies = 0;
     let attackerLosses = 0;
     for (let i = 0; i < simulationCount; i++) {
-        const attackerRoll = simulateDiceRoll(attackerPool, facesByColor, isAttackerElite);
-        const defenderRoll = simulateDiceRoll(defenderPool, facesByColor, isDefenderElite);
+        const attackerRoll = simulateDiceRoll(attackerPool, facesByColor, isAttackerElite, rng);
+        const defenderRoll = simulateDiceRoll(defenderPool, facesByColor, isDefenderElite, rng);
 
         const woundsA = Math.max(0, attackerRoll.hits - defenderRoll.blocks);
         const woundsD = Math.max(0, defenderRoll.hits - attackerRoll.blocks);
 
-        results.woundsAttacker[woundsA]++;
-        results.woundsDefender[woundsD]++;
+        results.woundsAttacker[woundsA] = (results.woundsAttacker[woundsA] || 0) + 1;
+        results.woundsDefender[woundsD] = (results.woundsDefender[woundsD] || 0) + 1;
 
-        results.attackerSpecialsDist[attackerRoll.specials]++;
-        results.defenderSpecialsDist[defenderRoll.specials]++;
+        results.attackerSpecialsDist[attackerRoll.specials] = (results.attackerSpecialsDist[attackerRoll.specials] || 0) + 1;
+        results.defenderSpecialsDist[defenderRoll.specials] = (results.defenderSpecialsDist[defenderRoll.specials] || 0) + 1;
 
         if (woundsA > woundsD) attackerWins++;
         else if (woundsA === woundsD) attackerTies++;
@@ -520,7 +440,7 @@ export async function performCombatSimulation(attackerPool, defenderPool, facesB
 }
 
 // New: pipeline-based combat simulation
-export async function performCombatSimulationWithPipeline(attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline, defenderPipeline) {
+export async function performCombatSimulationWithPipeline(attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline, defenderPipeline, rng = Math.random) {
     const results = {
         woundsAttacker: {},
         woundsDefender: {},
@@ -542,19 +462,13 @@ export async function performCombatSimulationWithPipeline(attackerPool, defender
         timestamp: new Date().toLocaleTimeString()
     };
 
-    for (let i = 0; i <= 50; i++) {
-        results.woundsAttacker[i] = 0;
-        results.woundsDefender[i] = 0;
-        results.attackerSpecialsDist[i] = 0;
-        results.defenderSpecialsDist[i] = 0;
-    }
 
     let attackerWins = 0;
     let attackerTies = 0;
     let attackerLosses = 0;
     for (let i = 0; i < simulationCount; i++) {
-        const preA = simulateDiceRoll(attackerPool, facesByColor, false);
-        const preD = simulateDiceRoll(defenderPool, facesByColor, false);
+        const preA = simulateDiceRoll(attackerPool, facesByColor, false, rng);
+        const preD = simulateDiceRoll(defenderPool, facesByColor, false, rng);
         const attackerRoll = applyPipelineToAggregate(preA, attackerPipeline);
         const defenderRoll = applyPipelineToAggregate(preD, defenderPipeline);
 
@@ -569,10 +483,10 @@ export async function performCombatSimulationWithPipeline(attackerPool, defender
         const woundsA = Math.max(0, (attackerRoll.hits || 0) - (defenderRoll.blocks || 0));
         const woundsD = Math.max(0, (defenderRoll.hits || 0) - (attackerRoll.blocks || 0));
 
-        results.woundsAttacker[woundsA]++;
-        results.woundsDefender[woundsD]++;
-        results.attackerSpecialsDist[attackerRoll.specials]++;
-        results.defenderSpecialsDist[defenderRoll.specials]++;
+        results.woundsAttacker[woundsA] = (results.woundsAttacker[woundsA] || 0) + 1;
+        results.woundsDefender[woundsD] = (results.woundsDefender[woundsD] || 0) + 1;
+        results.attackerSpecialsDist[attackerRoll.specials] = (results.attackerSpecialsDist[attackerRoll.specials] || 0) + 1;
+        results.defenderSpecialsDist[defenderRoll.specials] = (results.defenderSpecialsDist[defenderRoll.specials] || 0) + 1;
 
         if (woundsA > woundsD) attackerWins++;
         else if (woundsA === woundsD) attackerTies++;

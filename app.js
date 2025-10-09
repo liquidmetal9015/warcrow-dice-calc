@@ -65,12 +65,7 @@ class WarcrowCalculator {
         // Initialize Post-processing UI values from current pipeline
         this.initPostProcessingUI();
 
-        // Clear persisted pipeline steps on page load so refresh starts empty
-        try {
-            ['analysis','attacker','defender'].forEach(scope => localStorage.removeItem(`pipeline:${scope}`));
-        } catch {}
-
-        // Render pipeline editors
+        // Render pipeline editors (pipelines may be restored from localStorage)
         this.loadPipelinesFromStorage();
         this.renderPipelineEditor('analysis', this.analysisPipeline);
         this.renderPipelineEditor('attacker', this.attackerPipeline);
@@ -212,12 +207,13 @@ class WarcrowCalculator {
 
     iconSpan(key, fallbackText) {
         const map = window.WARCROW_ICON_MAP;
-        if (!map) {
-            throw new Error('WARCROW_ICON_MAP is not defined');
-        }
-        const glyph = map[key];
+        const glyph = map && map[key];
         if (glyph) return `<span class="wc-icon">${glyph}</span>`;
-        throw new Error(`Missing glyph mapping for ${key}`);
+        this.logMissingIcon(key);
+        if (typeof fallbackText === 'string' && fallbackText.length > 0) {
+            return `<span class="wc-fallback">${fallbackText}</span>`;
+        }
+        return `<span class="wc-fallback">${key}</span>`;
     }
 
     logMissingIcon(key) {
