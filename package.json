@@ -10,7 +10,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "setup": "bash scripts/setup.sh"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
