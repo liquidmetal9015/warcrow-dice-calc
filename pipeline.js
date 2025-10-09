@@ -55,13 +55,42 @@ export class AddSymbolsStep {
 export class SwitchSymbolsStep {
     constructor(id, enabled, from, to, ratio = { x: 1, y: 1 }, max = null) {
         this.id = id; this.enabled = enabled; this.from = from; this.to = to; this.ratio = ratio; this.max = max; this.type = 'SwitchSymbols';
+        // Optional: dual-source support, an array of parts to consume together per activation
+        // Each part: { symbol: 'hits'|'blocks'|'specials'|'hollowHits'|'hollowBlocks'|'hollowSpecials', units: number }
+        // Not set by default; UI may assign it. If defined and non-empty, takes precedence over `from`.
+        this.fromParts = this.fromParts; // will be assigned externally if persisted
     }
     applyPost(state) {
-        const available = Math.floor((state.aggregate[this.from] || 0) / Math.max(1, this.ratio.x));
+        const ratioX = Math.max(1, (this.ratio && this.ratio.x) || 1);
+        const ratioY = Math.max(0, (this.ratio && this.ratio.y) || 0);
+
+        const hasParts = Array.isArray(this.fromParts) && this.fromParts.length > 0;
+        if (hasParts) {
+            // Determine groups based on the tightest available part
+            const parts = this.fromParts.slice(0, 2).map(p => ({ symbol: p.symbol, units: Math.max(1, p.units | 0) }));
+            const groupsAvail = parts.map(p => {
+                const available = Math.max(0, state.aggregate[p.symbol] | 0);
+                return Math.floor(available / (p.units * ratioX));
+            });
+            let groups = groupsAvail.length ? Math.min(...groupsAvail) : 0;
+            const maxGroups = (this.max == null ? groups : Math.min(groups, Math.max(0, this.max | 0)));
+            groups = Math.max(0, maxGroups | 0);
+            if (groups <= 0) return;
+            // Pay cost across parts
+            for (const p of parts) {
+                state.aggregate[p.symbol] = Math.max(0, (state.aggregate[p.symbol] | 0) - groups * p.units * ratioX);
+            }
+            // Award to `to`
+            state.aggregate[this.to] = (state.aggregate[this.to] || 0) + groups * ratioY;
+            return;
+        }
+
+        // Legacy single-source behavior
+        const available = Math.floor((state.aggregate[this.from] || 0) / ratioX);
         const groups = Math.min(available, this.max == null ? available : this.max);
         if (groups <= 0) return;
-        state.aggregate[this.from] -= groups * Math.max(1, this.ratio.x);
-        state.aggregate[this.to] = (state.aggregate[this.to] || 0) + groups * Math.max(0, this.ratio.y);
+        state.aggregate[this.from] -= groups * ratioX;
+        state.aggregate[this.to] = (state.aggregate[this.to] || 0) + groups * ratioY;
     }
 }
 
@@ -69,21 +98,37 @@ export class SwitchSymbolsStep {
 export class CombatSwitchStep {
     constructor(id, enabled = true, config = {}) {
         this.id = id; this.enabled = enabled; this.type = 'CombatSwitch';
-        this.costSymbol = ['hits','blocks','specials'].includes(config.costSymbol) ? config.costSymbol : 'specials';
+        this.costSymbol = ['hits','blocks','specials','hollowHits','hollowBlocks','hollowSpecials'].includes(config.costSymbol) ? config.costSymbol : 'specials';
         this.costCount = Math.max(1, (config.costCount | 0) || 1);
         this.selfDelta = Object.assign({ hits: 0, blocks: 0, specials: 0 }, config.selfDelta || {});
         this.oppDelta = Object.assign({ hits: 0, blocks: 0, specials: 0 }, config.oppDelta || {});
         this.max = (config.max == null ? null : Math.max(0, config.max | 0));
+        // Optional: multi-part cost per activation, up to 2 entries
+        this.costParts = Array.isArray(config.costParts) ? config.costParts
+            .filter(p => p && ['hits','blocks','specials','hollowHits','hollowBlocks','hollowSpecials'].includes(p.symbol))
+            .slice(0, 2)
+            .map(p => ({ symbol: p.symbol, units: Math.max(1, p.units | 0) })) : null;
     }
     applyCombat(selfAgg, oppAgg) {
-        const available = Math.max(0, selfAgg[this.costSymbol] | 0);
-        const groupsByCost = Math.floor(available / Math.max(1, this.costCount));
-        let groups = groupsByCost;
+        const parts = Array.isArray(this.costParts) && this.costParts.length
+            ? this.costParts
+            : [{ symbol: this.costSymbol, units: 1 }];
+
+        // Groups limited by tightest resource among parts
+        const perActUnits = parts.map(p => ({ symbol: p.symbol, units: Math.max(1, p.units) * Math.max(1, this.costCount) }));
+        let groups = Math.min(
+            ...perActUnits.map(req => {
+                const available = Math.max(0, selfAgg[req.symbol] | 0);
+                return Math.floor(available / req.units);
+            })
+        );
         if (this.max != null) groups = Math.min(groups, this.max);
         if (groups <= 0) return;
 
-        // Pay cost from filled symbols only
-        selfAgg[this.costSymbol] = Math.max(0, (selfAgg[this.costSymbol] | 0) - groups * Math.max(1, this.costCount));
+        // Pay cost for all parts
+        for (const req of perActUnits) {
+            selfAgg[req.symbol] = Math.max(0, (selfAgg[req.symbol] | 0) - groups * req.units);
+        }
 
         // Apply self bonuses per activation
         for (const k of Object.keys(this.selfDelta)) {

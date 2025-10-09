@@ -144,7 +144,7 @@ class WarcrowCalculator {
                 if (type === 'ElitePromotion') pipeline.steps.push(new ElitePromotionStep(id, true));
                 if (type === 'AddSymbols') pipeline.steps.push(new AddSymbolsStep(id, true, { hits: 0, blocks: 0, specials: 0 }));
                 if (type === 'SwitchSymbols') pipeline.steps.push(new SwitchSymbolsStep(id, true, 'specials', 'hits', { x: 1, y: 1 }));
-                if (type === 'CombatSwitch') pipeline.steps.push(new CombatSwitchStep(id, true, { costSymbol: 'specials', costCount: 1, selfDelta: { hits: 0, blocks: 0, specials: 0 }, oppDelta: { hits: 1, blocks: 0, specials: 0 }, max: null }));
+                if (type === 'CombatSwitch') pipeline.steps.push(new CombatSwitchStep(id, true, { costSymbol: 'specials', costCount: 1, selfDelta: { hits: 0, blocks: 0, specials: 0 }, oppDelta: { hits: 0, blocks: 0, specials: 0 }, max: null }));
                 this.renderPipelineEditor(scope, pipeline);
                 this.onPipelineChanged(scope);
             });
@@ -252,8 +252,16 @@ class WarcrowCalculator {
                 const steps = arr.map(s => {
                     if (s.type === 'ElitePromotion') return Object.assign(new ElitePromotionStep(s.id, s.enabled, s.symbols, s.max), {});
                     if (s.type === 'AddSymbols') return Object.assign(new AddSymbolsStep(s.id, s.enabled, s.delta || {}), {});
-                    if (s.type === 'SwitchSymbols') return Object.assign(new SwitchSymbolsStep(s.id, s.enabled, s.from, s.to, s.ratio, s.max), {});
-                    if (s.type === 'CombatSwitch') return Object.assign(new CombatSwitchStep(s.id, s.enabled, { costSymbol: s.costSymbol || 'specials', costCount: s.costCount || 1, selfDelta: s.selfDelta || {}, oppDelta: s.oppDelta || {}, max: s.max }), {});
+                    if (s.type === 'SwitchSymbols') {
+                        const inst = new SwitchSymbolsStep(s.id, s.enabled, s.from, s.to, s.ratio, s.max);
+                        if (Array.isArray(s.fromParts) && s.fromParts.length) inst.fromParts = s.fromParts.slice(0,2).map(p => ({ symbol: p.symbol, units: Math.max(1, p.units|0) }));
+                        return Object.assign(inst, {});
+                    }
+                    if (s.type === 'CombatSwitch') {
+                        const cfg = { costSymbol: s.costSymbol || 'specials', costCount: s.costCount || 1, selfDelta: s.selfDelta || {}, oppDelta: s.oppDelta || {}, max: s.max };
+                        if (Array.isArray(s.costParts) && s.costParts.length) cfg.costParts = s.costParts.slice(0,2).map(p => ({ symbol: p.symbol, units: Math.max(1, p.units|0) }));
+                        return Object.assign(new CombatSwitchStep(s.id, s.enabled, cfg), {});
+                    }
                     return null;
                 }).filter(Boolean);
                 if (steps.length) pipeline.steps = steps;
@@ -339,6 +347,9 @@ class WarcrowCalculator {
                             <option ${step.from==='hollowHits'?'selected':''} value="hollowHits" title="Hollow Hits">${m.HOLLOW_HIT || '⭕'}</option>
                             <option ${step.from==='hollowBlocks'?'selected':''} value="hollowBlocks" title="Hollow Blocks">${m.HOLLOW_BLOCK || '⭕'}</option>
                             <option ${step.from==='hollowSpecials'?'selected':''} value="hollowSpecials" title="Hollow Specials">${m.HOLLOW_SPECIAL || '⭕'}</option>
+                            <option value="hits+hollowHits" title="Hits + Hollow Hits">${(m.HIT||'⚔️')} ${(m.HOLLOW_HIT||'⭕')}</option>
+                            <option value="blocks+hollowBlocks" title="Blocks + Hollow Blocks">${(m.BLOCK||'🛡️')} ${(m.HOLLOW_BLOCK||'⭕')}</option>
+                            <option value="specials+hollowSpecials" title="Specials + Hollow Specials">${(m.SPECIAL||'⚡')} ${(m.HOLLOW_SPECIAL||'⭕')}</option>
                         </select>
                     </label>
                     <div class="checkbox-label">→</div>
@@ -366,7 +377,14 @@ class WarcrowCalculator {
                     return [
                         opt('hits','HIT','Hits'),
                         opt('blocks','BLOCK','Blocks'),
-                        opt('specials','SPECIAL','Specials')
+                        opt('specials','SPECIAL','Specials'),
+                        opt('hollowHits','HOLLOW_HIT','Hollow Hits'),
+                        opt('hollowBlocks','HOLLOW_BLOCK','Hollow Blocks'),
+                        opt('hollowSpecials','HOLLOW_SPECIAL','Hollow Specials'),
+                        // combo pairs
+                        `<option value="hits+hollowHits" title="Hits + Hollow Hits">${(m.HIT||'⚔️')} ${(m.HOLLOW_HIT||'⭕')}</option>`,
+                        `<option value="blocks+hollowBlocks" title="Blocks + Hollow Blocks">${(m.BLOCK||'🛡️')} ${(m.HOLLOW_BLOCK||'⭕')}</option>`,
+                        `<option value="specials+hollowSpecials" title="Specials + Hollow Specials">${(m.SPECIAL||'⚡')} ${(m.HOLLOW_SPECIAL||'⭕')}</option>`
                     ].join('');
                 })();
                 options.innerHTML = `
@@ -425,9 +443,33 @@ class WarcrowCalculator {
                         if (el.dataset.opt === 'ratioX') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.x = Math.max(1, parseInt(el.value || '1', 10) || 1); }
                         if (el.dataset.opt === 'ratioY') { step.ratio = step.ratio || { x: 1, y: 1 }; step.ratio.y = Math.max(0, parseInt(el.value || '1', 10) || 1); }
                         if (el.dataset.opt === 'max') step.max = el.value === '' ? null : Math.max(0, parseInt(el.value || '0', 10) || 0);
+                        // Handle combo value for from -> fromParts precedence
+                        if (el.dataset.opt === 'from') {
+                            if (typeof el.value === 'string' && el.value.includes('+')) {
+                                const [a,b] = el.value.split('+');
+                                step.fromParts = [
+                                    { symbol: a, units: 1 },
+                                    { symbol: b, units: 1 }
+                                ];
+                            } else {
+                                step.fromParts = null;
+                            }
+                        }
                     } else if (step.type === 'CombatSwitch') {
                         const key = el.dataset.opt;
-                        if (key === 'costSymbol') { step.costSymbol = el.value; }
+                        if (key === 'costSymbol') { 
+                            step.costSymbol = el.value; 
+                            // Handle combos by setting costParts
+                            if (typeof el.value === 'string' && el.value.includes('+')) {
+                                const [a,b] = el.value.split('+');
+                                step.costParts = [
+                                    { symbol: a, units: 1 },
+                                    { symbol: b, units: 1 }
+                                ];
+                            } else {
+                                step.costParts = null;
+                            }
+                        }
                         else if (key === 'costCount') { step.costCount = Math.max(1, parseInt(el.value || '1', 10) || 1); }
                         else if (key === 'max') { step.max = el.value === '' ? null : Math.max(0, parseInt(el.value || '0', 10) || 0); }
                         else if (key && key.startsWith('selfDelta.')) {
@@ -488,6 +530,7 @@ class WarcrowCalculator {
             case 'ElitePromotion': return 'Elite promotion';
             case 'AddSymbols': return 'Automatic symbols';
             case 'SwitchSymbols': return 'Switch symbols';
+            case 'CombatSwitch': return 'Combat switch';
             default: return type;
         }
     }
@@ -503,12 +546,14 @@ class WarcrowCalculator {
                 delta: s.delta,
                 symbols: s.symbols,
                 from: s.from,
+                fromParts: s.fromParts,
                 to: s.to,
                 ratio: s.ratio,
                 max: s.max,
                 // CombatSwitch specific
                 costSymbol: s.costSymbol,
                 costCount: s.costCount,
+                costParts: s.costParts,
                 selfDelta: s.selfDelta,
                 oppDelta: s.oppDelta
             }));
