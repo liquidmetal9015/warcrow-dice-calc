@@ -24,14 +24,14 @@ const facesByColorStub: FacesByColor = {
 describe('dice: simulate and stats', () => {
   it('simulateDiceRoll aggregates symbols deterministically', () => {
     const rng = makeDeterministicRng([0.0, 0.1, 0.2, 0.3]);
-    const agg = simulateDiceRoll({ Red: 2, Green: 1 }, facesByColorStub, false, rng);
+    const agg = simulateDiceRoll({ Red: 2, Green: 1 }, facesByColorStub, rng);
     expect(agg.hits + agg.hollowHits + agg.blocks + agg.hollowBlocks + agg.specials + agg.hollowSpecials).toBeGreaterThan(0);
   });
 
   it('computeDieStats prefers primary symbol by color role', () => {
-    const statsRed = computeDieStats(facesByColorStub.RED, 'RED');
+    const statsRed = computeDieStats(facesByColorStub.RED!, 'RED');
     expect(statsRed.primaryLabel).toBe('Hit');
-    const statsBlue = computeDieStats(facesByColorStub.BLUE, 'BLUE');
+    const statsBlue = computeDieStats(facesByColorStub.BLUE!, 'BLUE');
     expect(statsBlue.primaryLabel).toBe('Block');
   });
 });
@@ -39,7 +39,7 @@ describe('dice: simulate and stats', () => {
 describe('monte carlo: normalization & expected/std sanity', () => {
   it('performMonteCarloSimulation produces distributions summing ~100%', async () => {
     const rng = makeLinearRng(0.05, 0.173);
-    const res = await performMonteCarloSimulation({ Red: 1, Blue: 1 }, facesByColorStub, 2000, false, rng);
+    const res = await performMonteCarloSimulation({ Red: 1, Blue: 1 }, facesByColorStub, 2000, rng);
     const sum = Object.values(res.hits).reduce((a, b) => a + b, 0);
     expect(Math.abs(sum - 100)).toBeLessThanOrEqual(0.5);
     // std should be non-negative

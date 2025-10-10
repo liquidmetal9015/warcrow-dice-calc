@@ -19,7 +19,7 @@ describe('simulateDiceRoll', () => {
   };
   it('produces deterministic aggregate with injected RNG', () => {
     const pool = { Red: 3 };
-    const agg = simulateDiceRoll(pool, faces, false, fixedRng);
+    const agg = simulateDiceRoll(pool, faces, fixedRng);
     // fixedRng picks index 0 => face [HIT]
     expect(agg.hits).toBe(3);
     expect(agg.specials).toBe(0);
