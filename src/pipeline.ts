@@ -32,6 +32,43 @@ export class Pipeline {
   }
 }
 
+// Serialized representation (for localStorage)
+export type SerializedPipelineStep =
+  | {
+      type: 'ElitePromotion';
+      id: string;
+      enabled: boolean;
+      symbols?: Array<keyof Aggregate>;
+      max?: number | null;
+    }
+  | {
+      type: 'AddSymbols';
+      id: string;
+      enabled: boolean;
+      delta?: Partial<Aggregate>;
+    }
+  | {
+      type: 'SwitchSymbols';
+      id: string;
+      enabled: boolean;
+      from: keyof Aggregate | string;
+      fromParts?: Array<{ symbol: keyof Aggregate; units: number }> | null;
+      to: keyof Aggregate;
+      ratio?: { x: number; y: number };
+      max?: number | null;
+    }
+  | {
+      type: 'CombatSwitch';
+      id: string;
+      enabled: boolean;
+      costSymbol?: keyof Aggregate;
+      costCount?: number;
+      costParts?: Array<{ symbol: keyof Aggregate; units: number }> | null;
+      selfDelta?: Partial<Aggregate>;
+      oppDelta?: Partial<Aggregate>;
+      max?: number | null;
+    };
+
 export class ElitePromotionStep implements PipelineStep {
   id: string; enabled: boolean; type = 'ElitePromotion'; symbols: Array<keyof Aggregate>; max: number | null;
   constructor(id: string, enabled = true, symbols: Array<keyof Aggregate> = ['hollowHits','hollowBlocks','hollowSpecials'], max: number | null = null) {

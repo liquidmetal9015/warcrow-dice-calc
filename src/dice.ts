@@ -38,6 +38,20 @@ export function isAttackColor(color: string): boolean {
   return color === 'RED' || color === 'ORANGE' || color === 'YELLOW';
 }
 
+export async function loadDiceFaces(): Promise<FacesByColor> {
+  const resp = await fetch('warcrow_dice_faces.json', { cache: 'no-store' });
+  if (!resp.ok) throw new Error('Failed to load warcrow_dice_faces.json');
+  const faces = (await resp.json()) as FacesByColor;
+  // Basic validation: each die should have 8 faces
+  for (const color of Object.keys(faces)) {
+    const arr = faces[color];
+    if (!Array.isArray(arr) || arr.length !== 8) {
+      throw new Error(`Die ${color} must have exactly 8 faces`);
+    }
+  }
+  return faces;
+}
+
 export function blankAggregate(): Aggregate {
   return { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
 }
@@ -66,7 +80,8 @@ export function simulateDiceRoll(pool: Pool, facesByColor: FacesByColor, _isElit
     if (!faces) continue;
     for (let i = 0; i < count; i++) {
       const idx = Math.floor(rng() * 8);
-      const rolled = countSymbolsFromFace(faces[idx]);
+      const face = faces[idx] as readonly SymbolKey[];
+      const rolled = countSymbolsFromFace(face);
       agg.hits += rolled.hits;
       agg.blocks += rolled.blocks;
       agg.specials += rolled.specials;
@@ -141,17 +156,22 @@ function incJoint(map: JointDistribution, x: number, y: number) {
 function normalizeDistribution(map: Distribution, n: number) {
   for (const k of Object.keys(map)) {
     const key = Number(k);
-    map[key] = (map[key] / n) * 100;
+    const current = map[key] ?? 0;
+    map[key] = (current / n) * 100;
   }
 }
 
 function normalizeJoint(map: JointDistribution, n: number) {
   for (const x of Object.keys(map)) {
-    const row = map[Number(x)];
+    const xi = Number(x);
+    const row = map[xi];
+    if (!row) { map[xi] = {}; continue; }
     for (const y of Object.keys(row)) {
-      const yy = Number(y);
-      row[yy] = (row[yy] / n) * 100;
+      const yi = Number(y);
+      const val = row[yi] || 0;
+      row[yi] = (val / n) * 100;
     }
+    map[xi] = row;
   }
 }
 

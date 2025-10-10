@@ -35,3 +35,16 @@ coverage/
 Thumbs.db
 
 
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Temp files
+package.tmp.json
+*.tmp
+*.tmp.*
+
+# Merge/patch artifacts
+*.orig
+*.rej

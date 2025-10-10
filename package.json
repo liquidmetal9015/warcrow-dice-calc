@@ -11,11 +11,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "setup": "bash scripts/setup.sh"
+    "setup": "bash scripts/setup.sh",
+    "typecheck": "tsc --noEmit",
+    "test:cov": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.7.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.8",
