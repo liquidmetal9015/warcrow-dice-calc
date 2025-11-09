@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: '.',
+  base: process.env.NODE_ENV === 'production' ? '/warcrow-dice-calc/' : '/',
   appType: 'spa',
   server: { port: 5173 },
   build: {
