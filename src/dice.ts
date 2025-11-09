@@ -447,8 +447,8 @@ export function getWeightsForPriorityMode(
 ): RerollValueWeights {
   const defaults = { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
   
-  // If counting hollow as filled, use same weights as filled
-  const hollowMultiplier = countHollowAsFilled ? 1 : 0.5;
+  // Hollow symbols are worth 0 unless elite promotion is active (countHollowAsFilled = true)
+  const hollowMultiplier = countHollowAsFilled ? 1 : 0;
   
   switch (mode) {
     case 'hits':

@@ -846,6 +846,10 @@ select[data-wc-symbols="true"] option {
   font-size: var(--font-size-lg);
 }
 
+.dice-selector {
+  display: block;
+}
+
 .dice-selector h3:first-child {
   margin-top: 0;
 }
@@ -1859,4 +1863,372 @@ details.card > summary {
 
 details.card > summary:hover {
   background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* ====================== */
+/* Explorer Tab */
+/* ====================== */
+.explorer-section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.explorer-actions {
+    display: flex;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.explorer-dice-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.no-dice {
+    text-align: center;
+    color: var(--color-text-secondary);
+    padding: 40px;
+    font-style: italic;
+}
+
+/* Die Cards */
+.die-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    transition: border-color 0.2s, background-color 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.die-card.reroll-candidate {
+    border-color: var(--color-warning);
+    background: rgba(var(--color-warning-rgb), var(--status-bg-opacity));
+}
+
+.die-card__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-card-border-inner);
+}
+
+.die-icon-large {
+    font-family: 'WarcrowSymbols', sans-serif;
+    font-size: 2em;
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--font-weight-bold);
+    color: white;
+    box-shadow: var(--shadow-sm);
+    margin-right: 4px;
+}
+
+/* Die icon colors */
+.die-icon-large.red-die { background-color: #DC2626; }
+.die-icon-large.orange-die { background-color: #ee7401; }
+.die-icon-large.yellow-die { background-color: #ffed00; color: var(--color-slate-900); }
+.die-icon-large.green-die { background-color: #75e93c; }
+.die-icon-large.blue-die { background-color: #009ee3; }
+.die-icon-large.black-die { background-color: #374151; }
+
+.die-color {
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.reroll-badge {
+    margin-left: auto;
+    background: var(--color-warning);
+    color: var(--color-cream-50);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+/* Face Selector */
+.face-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.face-selector-label {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.reroll-die-btn {
+    font-size: 0.85em;
+    padding: 4px 8px;
+}
+
+.face-selector {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.face-radio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 6px 4px;
+    border: 1px solid var(--color-card-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    background: var(--color-surface);
+    overflow: hidden;
+}
+
+.face-radio:hover {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.05);
+}
+
+.face-radio.selected {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+}
+
+.face-radio input[type="radio"] {
+    display: none;
+}
+
+.face-display {
+    font-family: 'WarcrowSymbols', sans-serif;
+    font-size: 0.85em;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    letter-spacing: -0.05em;
+}
+
+/* Stats Display */
+.die-card__stats {
+    margin-top: 12px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 4px 0;
+    font-size: 0.9em;
+}
+
+.stat-label {
+    color: var(--color-text-secondary);
+}
+
+.stat-value {
+    font-weight: 600;
+}
+
+.stat-value.negative {
+    color: #f44336;
+}
+
+.stat-value.positive {
+    color: #4caf50;
+}
+
+.no-performance-message {
+    padding: 16px;
+    margin-top: 12px;
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: var(--radius-base);
+    text-align: center;
+}
+
+.no-performance-message p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+/* Performance Bar */
+.performance-bar {
+    margin-top: 16px;
+}
+
+.performance-bar__track {
+    position: relative;
+    height: 24px;
+    background: linear-gradient(to right, #f44336 0%, #ffeb3b 50%, #4caf50 100%);
+    border-radius: 12px;
+    margin-bottom: 4px;
+}
+
+.performance-bar__fill,
+.performance-bar__marker {
+    position: absolute;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    background: #000;
+    border-radius: 2px;
+    transform: translateX(-50%);
+}
+
+.performance-bar__expected {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 1px;
+    transform: translateX(-50%);
+}
+
+.performance-bar__labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75em;
+    color: var(--color-text-secondary);
+}
+
+/* Aggregate Analysis */
+.aggregate-analysis {
+    padding: 20px;
+}
+
+.aggregate-result {
+    margin: 16px 0;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0;
+}
+
+.result-label {
+    font-weight: 600;
+    color: #666;
+}
+
+.result-value {
+    font-family: 'WarcrowSymbols', sans-serif;
+    font-size: 1.3em;
+}
+
+.reroll-recommendation {
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    margin: 16px 0;
+}
+
+.reroll-recommendation.recommend-reroll {
+    background: rgba(var(--color-warning-rgb), var(--status-bg-opacity));
+    border: 1px solid rgba(var(--color-warning-rgb), var(--status-border-opacity));
+}
+
+.reroll-recommendation.recommend-keep {
+    background: rgba(var(--color-success-rgb), var(--status-bg-opacity));
+    border: 1px solid rgba(var(--color-success-rgb), var(--status-border-opacity));
+}
+
+.recommendation-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.recommendation-icon {
+    font-size: 1.5em;
+}
+
+.recommendation-text {
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.recommendation-details {
+    margin-top: 12px;
+}
+
+.stat-comparison {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-item .stat-label {
+    display: block;
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.stat-item .stat-value {
+    display: block;
+    font-size: 1.2em;
+}
+
+.policy-note {
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
+    font-style: italic;
+    margin-top: 12px;
+}
+
+/* Symbol Icons */
+.symbol-icon {
+    font-family: 'WarcrowSymbols', sans-serif;
+    font-size: 1.2em;
+}
+
+.symbol-icon.hit { 
+    color: var(--color-hit);
+}
+
+.symbol-icon.hollow-hit { 
+    color: var(--color-hollow-hit);
+}
+
+.symbol-icon.block { 
+    color: var(--color-block);
+}
+
+.symbol-icon.hollow-block { 
+    color: var(--color-hollow-block);
+}
+
+.symbol-icon.special { 
+    color: var(--color-special);
+}
+
+.symbol-icon.hollow-special { 
+    color: var(--color-hollow-special);
+}
+
+.no-symbols {
+    color: var(--color-text-secondary);
+    opacity: 0.5;
 }

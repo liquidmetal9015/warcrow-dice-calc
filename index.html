@@ -25,6 +25,7 @@
             <button class="btn tab-btn active btn--primary" data-tab="analysis">Roll Calculator</button>
             <button class="btn tab-btn btn--outline" data-tab="combat">Face-to-Face</button>
             <button class="btn tab-btn btn--outline" data-tab="faces">Dice Reference</button>
+            <button class="btn tab-btn btn--outline" data-tab="explorer">Reroll Explorer</button>
         </div>
 
         <div class="main-content">
@@ -691,6 +692,121 @@
                     
                     <div class="dice-face-grid">
                         <div class="dice-face-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reroll Explorer Tab -->
+            <div class="tab-content hidden" id="explorer-tab">
+                <div class="explorer-section">
+                    <h2>Reroll Explorer</h2>
+                    <p class="help-text">Manually roll dice and analyze which dice should be prioritized for rerolling</p>
+                    
+                    <!-- Dice pool selector -->
+                    <div class="dice-pool-section">
+                        <div class="pool-header">
+                            <h3>Dice Pool</h3>
+                        </div>
+                        
+                        <div class="dice-selector">
+                            <div class="dice-row">
+                                <div class="dice-type" data-color="Red">
+                                    <div class="dice-icon red-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Red</div>
+                                </div>
+                                <div class="dice-type" data-color="Orange">
+                                    <div class="dice-icon orange-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Orange</div>
+                                </div>
+                                <div class="dice-type" data-color="Yellow">
+                                    <div class="dice-icon yellow-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Yellow</div>
+                                </div>
+                                <div class="dice-type" data-color="Green">
+                                    <div class="dice-icon green-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Green</div>
+                                </div>
+                                <div class="dice-type" data-color="Blue">
+                                    <div class="dice-icon blue-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Blue</div>
+                                </div>
+                                <div class="dice-type" data-color="Black">
+                                    <div class="dice-icon black-die"></div>
+                                    <div class="dice-controls">
+                                        <button class="btn btn--sm dice-btn-minus">-</button>
+                                        <span class="dice-count">0</span>
+                                        <button class="btn btn--sm dice-btn-plus">+</button>
+                                    </div>
+                                    <div class="dice-label">Black</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Reroll Objective Settings -->
+                    <div class="card" style="margin-top: 16px;">
+                        <div class="card__body">
+                            <h3 style="margin-bottom: 12px;">Reroll Objective</h3>
+                            <div class="segmented-control">
+                                <input type="radio" id="explorer-priority-hits" name="explorer-priority" value="hits" checked>
+                                <label for="explorer-priority-hits">Priority Hits</label>
+                                
+                                <input type="radio" id="explorer-priority-blocks" name="explorer-priority" value="blocks">
+                                <label for="explorer-priority-blocks">Priority Blocks</label>
+                                
+                                <input type="radio" id="explorer-priority-specials" name="explorer-priority" value="specials">
+                                <label for="explorer-priority-specials">Priority Specials</label>
+                            </div>
+                            
+                            <div style="margin-top: 12px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="explorer-count-hollow-as-filled">
+                                    <span>Count hollow symbols as filled symbols</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Roll button -->
+                    <div class="explorer-actions">
+                        <button class="btn btn--primary" id="explorer-roll-btn">Roll Dice</button>
+                        <button class="btn btn--secondary" id="explorer-clear-btn">Clear Pool</button>
+                    </div>
+                    
+                    <!-- Aggregate analysis section -->
+                    <div id="explorer-aggregate-section" class="card" style="display: none;">
+                        <!-- Shows aggregate results and full reroll recommendation -->
+                    </div>
+                    
+                    <!-- Dice cards list -->
+                    <div id="explorer-dice-list" class="explorer-dice-list">
+                        <!-- Dynamic die cards rendered here -->
+                    </div>
                 </div>
             </div>
         </div>

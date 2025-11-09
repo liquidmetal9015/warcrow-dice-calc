@@ -1,6 +1,6 @@
 // Enhanced Warcrow Monte Carlo Calculator (TypeScript entry, UI logic)
-import { loadDiceFaces, performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline, computeDieStats, normalizeColor, isAttackColor } from './dice';
-import type { FacesByColor, MonteCarloResults, CombatResults, Aggregate } from './dice';
+import { loadDiceFaces, performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline, computeDieStats, normalizeColor, isAttackColor, getWeightsForPriorityMode, computeColorExpectedValues, selectDiceToReroll, scoreDie, countSymbolsFromFace } from './dice';
+import type { FacesByColor, MonteCarloResults, CombatResults, Aggregate, Pool } from './dice';
 import { Pipeline, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep } from './pipeline';
 import type { PipelineStep, SerializedPipelineStep } from './pipeline';
 import { serializePipeline } from './pipelineSerialization';
@@ -9,10 +9,12 @@ import { SimulationController } from './controllers/simulationController';
 import { DEFAULT_SIMULATION_COUNT, DEFAULT_DEBOUNCE_MS, STORAGE_KEYS } from './constants';
 import type { RepeatRollConfig, RepeatDiceConfig } from './types/reroll';
 import { initRepeatRollUI, initRepeatDiceUI, getDefaultRepeatRollConfig, getDefaultRepeatDiceConfig } from './ui/rerollEditor';
+import { renderDieCard, renderAggregateAnalysis } from './ui/rerollExplorer';
+import type { DieRoll } from './types/reroll';
 
 type StepUnion = AddSymbolsStep | ElitePromotionStep | SwitchSymbolsStep | CombatSwitchStep;
 
-type TabName = 'analysis' | 'combat' | 'faces';
+type TabName = 'analysis' | 'combat' | 'faces' | 'explorer';
 type PoolColor = 'Red' | 'Orange' | 'Yellow' | 'Green' | 'Blue' | 'Black';
 type DicePool = Record<PoolColor, number>;
 
@@ -22,6 +24,10 @@ class WarcrowCalculator {
     analysisPool: DicePool;
     attackerPool: DicePool;
     defenderPool: DicePool;
+    explorerPool: DicePool;
+    explorerDiceStates: Array<{ color: PoolColor; faceIndex: number }>;
+    explorerPriorityMode: 'hits' | 'blocks' | 'specials';
+    explorerCountHollowAsFilled: boolean;
     isSimulating: boolean;
     isCombatSimulating: boolean;
     lastSimulationData: MonteCarloResults | null;
@@ -64,6 +70,10 @@ class WarcrowCalculator {
         this.analysisPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
         this.attackerPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
         this.defenderPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
+        this.explorerPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
+        this.explorerDiceStates = [];
+        this.explorerPriorityMode = 'hits';
+        this.explorerCountHollowAsFilled = false;
         this.isSimulating = false;
         this.isCombatSimulating = false;
         this.lastSimulationData = null;
@@ -120,6 +130,7 @@ class WarcrowCalculator {
         this.resetResultsDisplay();
 
         this.initPostProcessingUI();
+        this.initExplorerTab();
         this.loadPipelinesFromStorage();
         this.renderPipelineEditor('analysis', this.analysisPipeline);
         this.renderPipelineEditor('attacker', this.attackerPipeline);
@@ -192,7 +203,8 @@ class WarcrowCalculator {
             this.updateRunButtonsAvailability();
         });
 
-        document.querySelectorAll<HTMLElement>('.dice-btn-plus, .dice-btn-minus').forEach(btn => {
+        // Setup dice buttons for analysis, combat tabs (exclude explorer tab which has its own handlers)
+        document.querySelectorAll<HTMLElement>('#analysis-tab .dice-btn-plus, #analysis-tab .dice-btn-minus, #combat-tab .dice-btn-plus, #combat-tab .dice-btn-minus').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.currentTarget as HTMLElement | null;
                 if (!target) return;
@@ -259,7 +271,8 @@ class WarcrowCalculator {
     }
 
     syncCountsFromState(): void {
-        document.querySelectorAll('.dice-type').forEach(el => {
+        // Sync dice counts for analysis and combat tabs only (explorer has its own state)
+        document.querySelectorAll('#analysis-tab .dice-type, #combat-tab .dice-type').forEach(el => {
             const label = (el.querySelector('.dice-label') as HTMLElement).textContent!.trim() as PoolColor;
             const poolName = (el as HTMLElement).dataset.pool || 'analysis';
             const pool: DicePool = poolName === 'attacker' ? this.attackerPool : poolName === 'defender' ? this.defenderPool : this.analysisPool;
@@ -278,9 +291,16 @@ class WarcrowCalculator {
         const analysisTab = document.getElementById('analysis-tab') as HTMLElement | null;
         const combatTab = document.getElementById('combat-tab') as HTMLElement | null;
         const facesTab = document.getElementById('faces-tab') as HTMLElement | null;
+        const explorerTab = document.getElementById('explorer-tab') as HTMLElement | null;
         if (analysisTab) analysisTab.classList.toggle('hidden', tab !== 'analysis');
         if (combatTab) combatTab.classList.toggle('hidden', tab !== 'combat');
         if (facesTab) facesTab.classList.toggle('hidden', tab !== 'faces');
+        if (explorerTab) explorerTab.classList.toggle('hidden', tab !== 'explorer');
+        
+        if (tab === 'explorer') {
+            this.renderExplorerDice();
+        }
+        
         this.updateStaticDiceIcons?.();
         this.updateDisplay();
     }
@@ -961,6 +981,311 @@ class WarcrowCalculator {
 
     setAnalysisResultsVisibility(visible: boolean): void { const summary = document.getElementById('symbol-summary'); const sections = document.querySelectorAll('#analysis-tab .chart-section'); if (summary) summary.classList.toggle('hidden', !visible); sections.forEach(sec => (sec as HTMLElement).classList.toggle('hidden', !visible)); }
     setCombatResultsVisibility(visible: boolean): void { const summary = document.getElementById('combat-summary'); if (summary) summary.classList.toggle('hidden', !visible); const ids = ['combat-wounds-attacker', 'combat-wounds-defender', 'combat-specials-attacker', 'combat-specials-defender']; ids.forEach(id => { const canvas = document.getElementById(id) as HTMLCanvasElement | null; const container = canvas && canvas.parentElement; if (container) (container as HTMLElement).classList.toggle('hidden', !visible); }); }
+
+    // Explorer Tab Methods
+    initExplorerTab(): void {
+        if (!this.facesByColor) return;
+        
+        // Setup dice pool selectors (reuse existing dice selector logic)
+        const explorerTab = document.getElementById('explorer-tab');
+        if (!explorerTab) return;
+        
+        const diceTypes = explorerTab.querySelectorAll('.dice-type');
+        diceTypes.forEach(el => {
+            const color = el.getAttribute('data-color') as PoolColor;
+            if (!color) return;
+            
+            const minusBtn = el.querySelector('.dice-btn-minus');
+            const plusBtn = el.querySelector('.dice-btn-plus');
+            const countSpan = el.querySelector('.dice-count');
+            
+            minusBtn?.addEventListener('click', () => {
+                if (this.explorerPool[color] > 0) {
+                    this.explorerPool[color]--;
+                    if (countSpan) countSpan.textContent = String(this.explorerPool[color]);
+                    this.updateExplorerDiceList();
+                }
+            });
+            
+            plusBtn?.addEventListener('click', () => {
+                if (this.explorerPool[color] < 10) {
+                    this.explorerPool[color]++;
+                    if (countSpan) countSpan.textContent = String(this.explorerPool[color]);
+                    this.updateExplorerDiceList();
+                }
+            });
+        });
+        
+        // Roll button
+        const rollBtn = document.getElementById('explorer-roll-btn');
+        rollBtn?.addEventListener('click', () => {
+            this.rollExplorerDice();
+        });
+        
+        // Clear button
+        const clearBtn = document.getElementById('explorer-clear-btn');
+        clearBtn?.addEventListener('click', () => {
+            this.clearExplorerPool();
+        });
+        
+        // Priority mode radio buttons
+        const priorityRadios = document.querySelectorAll<HTMLInputElement>('input[name="explorer-priority"]');
+        priorityRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.checked) {
+                    this.explorerPriorityMode = radio.value as 'hits' | 'blocks' | 'specials';
+                    this.renderExplorerDice();
+                }
+            });
+        });
+        
+        // Hollow as filled checkbox
+        const hollowCheckbox = document.getElementById('explorer-count-hollow-as-filled') as HTMLInputElement;
+        hollowCheckbox?.addEventListener('change', () => {
+            this.explorerCountHollowAsFilled = hollowCheckbox.checked;
+            this.renderExplorerDice();
+        });
+    }
+
+    updateExplorerDiceList(): void {
+        if (!this.facesByColor) return;
+        
+        // Build dice states array from pool
+        const newStates: Array<{ color: PoolColor; faceIndex: number }> = [];
+        let id = 0;
+        
+        for (const [color, count] of Object.entries(this.explorerPool)) {
+            for (let i = 0; i < count; i++) {
+                const existing = this.explorerDiceStates[id];
+                newStates.push({
+                    color: color as PoolColor,
+                    faceIndex: existing?.faceIndex ?? Math.floor(Math.random() * 8) // preserve existing or randomize
+                });
+                id++;
+            }
+        }
+        
+        this.explorerDiceStates = newStates;
+        this.renderExplorerDice();
+    }
+
+    rollExplorerDice(): void {
+        // Randomize all dice faces
+        this.explorerDiceStates.forEach(die => {
+            die.faceIndex = Math.floor(Math.random() * 8);
+        });
+        this.renderExplorerDice();
+    }
+
+    renderExplorerDice(): void {
+        if (!this.facesByColor) {
+            console.log('Explorer: No facesByColor data');
+            return;
+        }
+        
+        const listEl = document.getElementById('explorer-dice-list');
+        const aggregateEl = document.getElementById('explorer-aggregate-section');
+        
+        if (!listEl || !aggregateEl) {
+            console.log('Explorer: Could not find list or aggregate elements', { listEl, aggregateEl });
+            return;
+        }
+        
+        if (this.explorerDiceStates.length === 0) {
+            console.log('Explorer: No dice in pool, showing empty message');
+            listEl.innerHTML = '<p class="no-dice">Add dice to your pool to get started</p>';
+            aggregateEl.style.display = 'none';
+            return;
+        }
+        
+        // Calculate aggregate and individual die data
+        const { aggregate, dieRolls } = this.calculateExplorerAggregate();
+        
+        // Use explorer's own priority mode (not synced with Analysis tab)
+        const priorityMode = this.explorerPriorityMode;
+        
+        // Calculate which dice should be rerolled (in priority order)
+        // Use the explorer's hollow-as-filled setting
+        const countHollowAsFilled = this.explorerCountHollowAsFilled;
+        const weights = getWeightsForPriorityMode(priorityMode, countHollowAsFilled);
+        const colorExpectations = computeColorExpectedValues(this.facesByColor, weights);
+        
+        // Filter out dice that have zero expected value for the priority symbol
+        // (e.g., Blue dice when optimizing for hits)
+        const eligibleDiceIndices = dieRolls
+            .map((die, idx) => ({ die, idx }))
+            .filter(({ die }) => {
+                const colorKey = normalizeColor(die.color);
+                const expectedValue = colorExpectations[colorKey];
+                return expectedValue !== undefined && expectedValue > 0; // Only rank dice that can contribute to the objective
+            })
+            .map(({ idx }) => idx);
+        
+        // Only select from eligible dice
+        const eligibleDieRolls = eligibleDiceIndices.map(idx => dieRolls[idx]!);
+        const relativeRerollIndices = selectDiceToReroll(eligibleDieRolls, eligibleDieRolls.length, weights, this.facesByColor);
+        
+        // Map relative indices back to original indices
+        const rerollIndicesArray = relativeRerollIndices.map(relativeIdx => eligibleDiceIndices[relativeIdx]!);
+        
+        // Create a map from die index to reroll priority (1 = highest priority)
+        const rerollPriorities = new Map<number, number>();
+        rerollIndicesArray.forEach((dieIdx, priorityRank) => {
+            rerollPriorities.set(dieIdx, priorityRank + 1); // 1-based ranking
+        });
+        
+        // Render aggregate section using explorer's priority mode
+        const explorerPool = this.getExplorerPoolAsPool();
+        
+        // Map priority mode to corresponding symbol
+        let symbol: keyof Aggregate;
+        if (priorityMode === 'blocks') {
+            symbol = 'blocks';
+        } else if (priorityMode === 'specials') {
+            symbol = 'specials';
+        } else {
+            // For 'hits' and 'balanced', default to hits
+            symbol = 'hits';
+        }
+        
+        const fakeRepeatRollConfig: RepeatRollConfig = {
+            enabled: true,
+            condition: {
+                type: 'BelowExpected',
+                symbol: symbol
+            }
+        };
+        
+        aggregateEl.innerHTML = renderAggregateAnalysis(aggregate, explorerPool, this.facesByColor, fakeRepeatRollConfig);
+        aggregateEl.style.display = 'block';
+        
+        // Render die cards
+        const cardsHTML = this.explorerDiceStates.map((die, idx) => {
+            const dieRoll = dieRolls[idx];
+            if (!dieRoll) return '';
+            
+            const score = scoreDie(dieRoll, weights, colorExpectations);
+            const colorKey = normalizeColor(die.color);
+            
+            const faces = this.facesByColor![colorKey];
+            if (!faces) return '';
+            
+            return renderDieCard(
+                { id: idx, color: die.color, faceIndex: die.faceIndex },
+                faces,
+                dieRoll,
+                score,
+                rerollPriorities.get(idx) || null, // Pass priority ranking or null
+                priorityMode,
+                countHollowAsFilled,
+                (newFaceIndex) => {
+                    const targetDie = this.explorerDiceStates[idx];
+                    if (targetDie) {
+                        targetDie.faceIndex = newFaceIndex;
+                        this.renderExplorerDice();
+                    }
+                },
+                () => {
+                    // Reroll this specific die
+                    const targetDie = this.explorerDiceStates[idx];
+                    if (targetDie) {
+                        targetDie.faceIndex = Math.floor(Math.random() * 8);
+                        this.renderExplorerDice();
+                    }
+                }
+            );
+        }).join('');
+        
+        listEl.innerHTML = cardsHTML;
+        
+        // Attach event listeners for face selection
+        this.attachExplorerDiceListeners();
+    }
+
+    calculateExplorerAggregate(): { aggregate: Aggregate; dieRolls: DieRoll[] } {
+        const aggregate: Aggregate = {
+            hits: 0, blocks: 0, specials: 0,
+            hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0
+        };
+        
+        const dieRolls: DieRoll[] = [];
+        
+        this.explorerDiceStates.forEach(die => {
+            const colorKey = normalizeColor(die.color);
+            const faces = this.facesByColor![colorKey];
+            if (!faces) return;
+            
+            const face = faces[die.faceIndex];
+            if (!face) return;
+            
+            const symbols = countSymbolsFromFace(face);
+            
+            dieRolls.push({ color: colorKey, faceIndex: die.faceIndex, symbols });
+            
+            aggregate.hits += symbols.hits;
+            aggregate.blocks += symbols.blocks;
+            aggregate.specials += symbols.specials;
+            aggregate.hollowHits += symbols.hollowHits;
+            aggregate.hollowBlocks += symbols.hollowBlocks;
+            aggregate.hollowSpecials += symbols.hollowSpecials;
+        });
+        
+        return { aggregate, dieRolls };
+    }
+
+    getExplorerPoolAsPool(): Pool {
+        const pool: Pool = {};
+        for (const [color, count] of Object.entries(this.explorerPool)) {
+            if (count > 0) {
+                pool[color] = count;
+            }
+        }
+        return pool;
+    }
+
+    attachExplorerDiceListeners(): void {
+        const dieCards = document.querySelectorAll('.die-card');
+        
+        dieCards.forEach((card, dieIdx) => {
+            // Face selection radio buttons
+            const radios = card.querySelectorAll('input[type="radio"]');
+            radios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const target = e.target as HTMLInputElement;
+                    const faceIndex = parseInt(target.value, 10);
+                    const die = this.explorerDiceStates[dieIdx];
+                    if (die) {
+                        die.faceIndex = faceIndex;
+                        this.renderExplorerDice();
+                    }
+                });
+            });
+            
+            // Reroll button
+            const rerollBtn = card.querySelector('.reroll-die-btn');
+            rerollBtn?.addEventListener('click', () => {
+                const die = this.explorerDiceStates[dieIdx];
+                if (die) {
+                    die.faceIndex = Math.floor(Math.random() * 8);
+                    this.renderExplorerDice();
+                }
+            });
+        });
+    }
+
+    clearExplorerPool(): void {
+        this.explorerPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
+        this.explorerDiceStates = [];
+        
+        // Update UI
+        const diceTypes = document.querySelectorAll('#explorer-tab .dice-type');
+        diceTypes.forEach(el => {
+            const countSpan = el.querySelector('.dice-count');
+            if (countSpan) countSpan.textContent = '0';
+        });
+        
+        this.renderExplorerDice();
+    }
 }
 
 function symbolToEmoji(sym: string) {

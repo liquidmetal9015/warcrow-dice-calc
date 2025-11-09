@@ -25,6 +25,16 @@ export function initRepeatRollUI(
   // Initialize state
   enableCheckbox.checked = initialConfig.enabled;
 
+  // Helper to parse condition value
+  function parseConditionValue(value: string): RepeatRollConfig['condition'] {
+    if (value.startsWith('below-expected-')) {
+      const symbol = value.replace('below-expected-', '') as keyof Aggregate;
+      return { type: 'BelowExpected', symbol };
+    }
+    // Default fallback
+    return { type: 'BelowExpected', symbol: 'hits' };
+  }
+
   // Set initial condition
   const condType = initialConfig.condition.type;
   const condSymbol = initialConfig.condition.symbol;
@@ -37,31 +47,31 @@ export function initRepeatRollUI(
     });
   }
 
+  // Helper to read current config from DOM (prevents stale closure captures)
+  function getCurrentConfig(): RepeatRollConfig {
+    const checkedRadio = Array.from(conditionRadios).find(r => r.checked);
+    const condition: RepeatRollConfig['condition'] = checkedRadio 
+      ? parseConditionValue(checkedRadio.value) 
+      : { type: 'BelowExpected', symbol: 'hits' };
+    return {
+      enabled: enableCheckbox.checked,
+      condition
+    };
+  }
+
   // Enable/disable toggle
   enableCheckbox.addEventListener('change', () => {
-    const enabled = enableCheckbox.checked;
-    callback({ ...initialConfig, enabled });
+    callback(getCurrentConfig());
   });
 
   // Condition change
   conditionRadios.forEach(radio => {
     radio.addEventListener('change', () => {
       if (radio.checked) {
-        const value = radio.value;
-        const newConfig = parseConditionValue(value);
-        callback({ enabled: enableCheckbox.checked, condition: newConfig });
+        callback(getCurrentConfig());
       }
     });
   });
-
-  function parseConditionValue(value: string): RepeatRollConfig['condition'] {
-    if (value.startsWith('below-expected-')) {
-      const symbol = value.replace('below-expected-', '') as keyof Aggregate;
-      return { type: 'BelowExpected', symbol };
-    }
-    // Default fallback
-    return { type: 'BelowExpected', symbol: 'hits' };
-  }
 }
 
 /**
@@ -96,38 +106,34 @@ export function initRepeatDiceUI(
     }
   });
 
+  // Helper to read current config from DOM (prevents stale closure captures)
+  function getCurrentConfig(): RepeatDiceConfig {
+    const checkedRadio = Array.from(priorityRadios).find(r => r.checked);
+    return {
+      enabled: enableCheckbox.checked,
+      maxDiceToReroll: parseInt(maxDiceInput.value || '2', 10),
+      priorityMode: checkedRadio?.value as RepeatDiceConfig['priorityMode'] || 'hits',
+      countHollowAsFilled: hollowCheckbox?.checked || false
+    };
+  }
+
   // Enable/disable toggle
   enableCheckbox.addEventListener('change', () => {
-    const enabled = enableCheckbox.checked;
-    callback({ 
-      ...initialConfig, 
-      enabled,
-      countHollowAsFilled: hollowCheckbox?.checked || false
-    });
+    callback(getCurrentConfig());
   });
 
   // Max dice change
   maxDiceInput.addEventListener('input', () => {
     const max = Math.max(1, Math.min(10, parseInt(maxDiceInput.value || '2', 10)));
     maxDiceInput.value = String(max);
-    callback({ 
-      ...initialConfig, 
-      maxDiceToReroll: max,
-      countHollowAsFilled: hollowCheckbox?.checked || false
-    });
+    callback(getCurrentConfig());
   });
 
   // Priority mode change
   priorityRadios.forEach(radio => {
     radio.addEventListener('change', () => {
       if (radio.checked) {
-        const mode = radio.value as RepeatDiceConfig['priorityMode'];
-        callback({ 
-          ...initialConfig, 
-          enabled: enableCheckbox.checked,
-          priorityMode: mode,
-          countHollowAsFilled: hollowCheckbox?.checked || false
-        });
+        callback(getCurrentConfig());
       }
     });
   });
@@ -135,13 +141,7 @@ export function initRepeatDiceUI(
   // Hollow checkbox change
   if (hollowCheckbox) {
     hollowCheckbox.addEventListener('change', () => {
-      const checkedRadio = Array.from(priorityRadios).find(r => r.checked);
-      callback({
-        ...initialConfig,
-        enabled: enableCheckbox.checked,
-        priorityMode: checkedRadio?.value as RepeatDiceConfig['priorityMode'] || 'hits',
-        countHollowAsFilled: hollowCheckbox.checked
-      });
+      callback(getCurrentConfig());
     });
   }
 }
