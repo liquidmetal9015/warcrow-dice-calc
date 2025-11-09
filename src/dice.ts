@@ -39,7 +39,9 @@ export function isAttackColor(color: string): boolean {
 }
 
 export async function loadDiceFaces(): Promise<FacesByColor> {
-  const resp = await fetch('warcrow_dice_faces.json', { cache: 'no-store' });
+  const base = import.meta.env.BASE_URL || '/';
+  const path = base.endsWith('/') ? base + 'warcrow_dice_faces.json' : base + '/warcrow_dice_faces.json';
+  const resp = await fetch(path, { cache: 'no-store' });
   if (!resp.ok) throw new Error('Failed to load warcrow_dice_faces.json');
   const faces = (await resp.json()) as FacesByColor;
   // Basic validation: each die should have 8 faces
