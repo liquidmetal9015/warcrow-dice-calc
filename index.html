@@ -104,6 +104,89 @@
                     </div>
                 </div>
 
+                <!-- Repeat Roll -->
+                <details class="card" id="repeat-roll-section">
+                    <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <h3 style="margin: 0; font-size: 1em;">Repeat Roll</h3>
+                            <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                        </div>
+                    </summary>
+                    <div class="card__body">
+                        <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                            <input type="checkbox" id="enable-repeat-roll">
+                            <span>Enable repeat roll</span>
+                        </label>
+                        
+                        <div id="repeat-roll-config">
+                            <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll entire pool once if condition met</p>
+                            
+                            <div style="margin-top: 12px;">
+                                <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Condition</div>
+                                <div class="segmented-control">
+                                    <input type="radio" id="condition-hits" name="reroll-condition" value="below-expected-hits" checked>
+                                    <label for="condition-hits">&lt; Expected Hits</label>
+                                    <input type="radio" id="condition-blocks" name="reroll-condition" value="below-expected-blocks">
+                                    <label for="condition-blocks">&lt; Expected Blocks</label>
+                                    <input type="radio" id="condition-specials" name="reroll-condition" value="below-expected-specials">
+                                    <label for="condition-specials">&lt; Expected Specials</label>
+                                </div>
+                            </div>
+                            
+                            <p class="help-text" style="margin-top: 12px;">
+                                Reroll if actual result is less than expected for your dice pool
+                            </p>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Repeat Dice -->
+                <details class="card" id="repeat-dice-section" style="margin-top: 12px;">
+                    <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <h3 style="margin: 0; font-size: 1em;">Repeat Dice</h3>
+                            <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                        </div>
+                    </summary>
+                    <div class="card__body">
+                        <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                            <input type="checkbox" id="enable-repeat-dice">
+                            <span>Enable repeat dice</span>
+                        </label>
+                        
+                        <div id="repeat-dice-config">
+                            <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll up to X worst-performing dice</p>
+                            
+                            <label class="form-label">
+                                Max dice to reroll:
+                                <input type="number" id="max-dice-reroll" class="form-control" min="1" max="10" value="2" style="width: 100px;">
+                            </label>
+                            
+                            <div style="margin-top: 12px;">
+                                <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Priority</div>
+                                <div class="segmented-control">
+                                    <input type="radio" id="priority-hits" name="priority-mode" value="hits" checked>
+                                    <label for="priority-hits">Hits</label>
+                                    <input type="radio" id="priority-blocks" name="priority-mode" value="blocks">
+                                    <label for="priority-blocks">Blocks</label>
+                                    <input type="radio" id="priority-specials" name="priority-mode" value="specials">
+                                    <label for="priority-specials">Specials</label>
+                                    <input type="radio" id="priority-balanced" name="priority-mode" value="balanced">
+                                    <label for="priority-balanced">Balanced</label>
+                                </div>
+                            </div>
+                            <label class="checkbox-label" style="margin-top: 12px; display: block;">
+                                <input type="checkbox" id="count-hollow-as-filled">
+                                <span>Count hollow symbols as filled</span>
+                            </label>
+                            
+                            <p class="help-text" style="margin-top: 12px;">
+                                Color-aware: red die with 0 hits rerolled before yellow die with 0 hits
+                            </p>
+                        </div>
+                    </div>
+                </details>
+
                 <!-- Post-processing (Analysis) - Pipeline Editor -->
                 <div class="pipeline-editor card" id="analysis-pipeline-editor">
                     <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
@@ -303,6 +386,84 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Attacker Reroll Configuration -->
+                            <details class="card" id="attacker-repeat-roll-section" style="margin-top: 12px;">
+                                <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <h3 style="margin: 0; font-size: 0.95em;">Repeat Roll</h3>
+                                        <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                                    </div>
+                                </summary>
+                                <div class="card__body">
+                                    <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                                        <input type="checkbox" id="enable-repeat-roll">
+                                        <span>Enable repeat roll</span>
+                                    </label>
+                                    <div id="repeat-roll-config">
+                                        <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll entire pool once if condition met</p>
+                                        
+                                        <div style="margin-top: 12px;">
+                                            <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Condition</div>
+                                            <div class="segmented-control">
+                                                <input type="radio" id="attacker-condition-hits" name="reroll-condition" value="below-expected-hits" checked>
+                                                <label for="attacker-condition-hits">&lt; Expected Hits</label>
+                                                <input type="radio" id="attacker-condition-blocks" name="reroll-condition" value="below-expected-blocks">
+                                                <label for="attacker-condition-blocks">&lt; Expected Blocks</label>
+                                                <input type="radio" id="attacker-condition-specials" name="reroll-condition" value="below-expected-specials">
+                                                <label for="attacker-condition-specials">&lt; Expected Specials</label>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="help-text" style="margin-top: 12px;">
+                                            Reroll if actual result is less than expected for your dice pool
+                                        </p>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="card" id="attacker-repeat-dice-section" style="margin-top: 12px;">
+                                <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <h3 style="margin: 0; font-size: 0.95em;">Repeat Dice</h3>
+                                        <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                                    </div>
+                                </summary>
+                                <div class="card__body">
+                                    <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                                        <input type="checkbox" id="enable-repeat-dice">
+                                        <span>Enable repeat dice</span>
+                                    </label>
+                                    <div id="repeat-dice-config">
+                                        <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll up to X worst-performing dice</p>
+                                        <label class="form-label">
+                                            Max dice to reroll:
+                                            <input type="number" id="max-dice-reroll" class="form-control" min="1" max="10" value="2" style="width: 100px;">
+                                        </label>
+                                        <div style="margin-top: 12px;">
+                                            <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Priority</div>
+                                            <div class="segmented-control">
+                                                <input type="radio" id="attacker-priority-hits" name="priority-mode" value="hits" checked>
+                                                <label for="attacker-priority-hits">Hits</label>
+                                                <input type="radio" id="attacker-priority-blocks" name="priority-mode" value="blocks">
+                                                <label for="attacker-priority-blocks">Blocks</label>
+                                                <input type="radio" id="attacker-priority-specials" name="priority-mode" value="specials">
+                                                <label for="attacker-priority-specials">Specials</label>
+                                                <input type="radio" id="attacker-priority-balanced" name="priority-mode" value="balanced">
+                                                <label for="attacker-priority-balanced">Balanced</label>
+                                            </div>
+                                        </div>
+                                        <label class="checkbox-label" style="margin-top: 12px; display: block;">
+                                            <input type="checkbox" id="count-hollow-as-filled">
+                                            <span>Count hollow symbols as filled</span>
+                                        </label>
+                                        <p class="help-text" style="margin-top: 12px;">
+                                            Color-aware: red die with 0 hits rerolled before yellow die with 0 hits
+                                        </p>
+                                    </div>
+                                </div>
+                            </details>
+                            
                             <div class="pipeline-editor card" id="attacker-pipeline-editor" style="margin-top: 12px;">
                                 <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
                                     <h2 style="font-size: 16px;">Post-processing</h2>
@@ -386,6 +547,84 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Defender Reroll Configuration -->
+                            <details class="card" id="defender-repeat-roll-section" style="margin-top: 12px;">
+                                <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <h3 style="margin: 0; font-size: 0.95em;">Repeat Roll</h3>
+                                        <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                                    </div>
+                                </summary>
+                                <div class="card__body">
+                                    <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                                        <input type="checkbox" id="enable-repeat-roll">
+                                        <span>Enable repeat roll</span>
+                                    </label>
+                                    <div id="repeat-roll-config">
+                                        <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll entire pool once if condition met</p>
+                                        
+                                        <div style="margin-top: 12px;">
+                                            <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Condition</div>
+                                            <div class="segmented-control">
+                                                <input type="radio" id="defender-condition-hits" name="reroll-condition" value="below-expected-hits" checked>
+                                                <label for="defender-condition-hits">&lt; Expected Hits</label>
+                                                <input type="radio" id="defender-condition-blocks" name="reroll-condition" value="below-expected-blocks">
+                                                <label for="defender-condition-blocks">&lt; Expected Blocks</label>
+                                                <input type="radio" id="defender-condition-specials" name="reroll-condition" value="below-expected-specials">
+                                                <label for="defender-condition-specials">&lt; Expected Specials</label>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="help-text" style="margin-top: 12px;">
+                                            Reroll if actual result is less than expected for your dice pool
+                                        </p>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="card" id="defender-repeat-dice-section" style="margin-top: 12px;">
+                                <summary class="card__header" style="cursor: pointer; user-select: none; list-style: none; display: block;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                                        <h3 style="margin: 0; font-size: 0.95em;">Repeat Dice</h3>
+                                        <span style="font-size: 1.2em; color: #999; transition: transform 0.2s;">▼</span>
+                                    </div>
+                                </summary>
+                                <div class="card__body">
+                                    <label class="checkbox-label" style="margin-bottom: 12px; display: block;">
+                                        <input type="checkbox" id="enable-repeat-dice">
+                                        <span>Enable repeat dice</span>
+                                    </label>
+                                    <div id="repeat-dice-config">
+                                        <p style="font-size: 0.9em; color: #666; margin: 0 0 12px 0;">Reroll up to X worst-performing dice</p>
+                                        <label class="form-label">
+                                            Max dice to reroll:
+                                            <input type="number" id="max-dice-reroll" class="form-control" min="1" max="10" value="2" style="width: 100px;">
+                                        </label>
+                                        <div style="margin-top: 12px;">
+                                            <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: var(--color-text);">Priority</div>
+                                            <div class="segmented-control">
+                                                <input type="radio" id="defender-priority-hits" name="priority-mode" value="hits" checked>
+                                                <label for="defender-priority-hits">Hits</label>
+                                                <input type="radio" id="defender-priority-blocks" name="priority-mode" value="blocks">
+                                                <label for="defender-priority-blocks">Blocks</label>
+                                                <input type="radio" id="defender-priority-specials" name="priority-mode" value="specials">
+                                                <label for="defender-priority-specials">Specials</label>
+                                                <input type="radio" id="defender-priority-balanced" name="priority-mode" value="balanced">
+                                                <label for="defender-priority-balanced">Balanced</label>
+                                            </div>
+                                        </div>
+                                        <label class="checkbox-label" style="margin-top: 12px; display: block;">
+                                            <input type="checkbox" id="count-hollow-as-filled">
+                                            <span>Count hollow symbols as filled</span>
+                                        </label>
+                                        <p class="help-text" style="margin-top: 12px;">
+                                            Color-aware: red die with 0 hits rerolled before yellow die with 0 hits
+                                        </p>
+                                    </div>
+                                </div>
+                            </details>
+                            
                             <div class="pipeline-editor card" id="defender-pipeline-editor" style="margin-top: 12px;">
                                 <div class="card__header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
                                     <h2 style="font-size: 16px;">Post-processing</h2>

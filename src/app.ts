@@ -7,6 +7,8 @@ import { serializePipeline } from './pipelineSerialization';
 import { renderPipelineEditor as renderPipelineEditorUI } from './ui/pipelineEditor';
 import { SimulationController } from './controllers/simulationController';
 import { DEFAULT_SIMULATION_COUNT, DEFAULT_DEBOUNCE_MS, STORAGE_KEYS } from './constants';
+import type { RepeatRollConfig, RepeatDiceConfig } from './types/reroll';
+import { initRepeatRollUI, initRepeatDiceUI, getDefaultRepeatRollConfig, getDefaultRepeatDiceConfig } from './ui/rerollEditor';
 
 type StepUnion = AddSymbolsStep | ElitePromotionStep | SwitchSymbolsStep | CombatSwitchStep;
 
@@ -44,6 +46,12 @@ class WarcrowCalculator {
     defenderPipeline: Pipeline;
     pipelines: Record<'analysis'|'attacker'|'defender', Pipeline>;
     sim: SimulationController;
+    analysisRepeatRollConfig: RepeatRollConfig;
+    analysisRepeatDiceConfig: RepeatDiceConfig;
+    attackerRepeatRollConfig: RepeatRollConfig;
+    attackerRepeatDiceConfig: RepeatDiceConfig;
+    defenderRepeatRollConfig: RepeatRollConfig;
+    defenderRepeatDiceConfig: RepeatDiceConfig;
     constructor() {
         this.PRESETS = {
             "basic_attack": {"Red": 1, "Orange": 0, "Yellow": 0, "Green": 0, "Blue": 0, "Black": 0},
@@ -80,6 +88,14 @@ class WarcrowCalculator {
 
         this.pipelines = { analysis: this.analysisPipeline, attacker: this.attackerPipeline, defender: this.defenderPipeline };
         this.sim = new SimulationController();
+
+        // Reroll configs
+        this.analysisRepeatRollConfig = getDefaultRepeatRollConfig();
+        this.analysisRepeatDiceConfig = getDefaultRepeatDiceConfig();
+        this.attackerRepeatRollConfig = getDefaultRepeatRollConfig();
+        this.attackerRepeatDiceConfig = getDefaultRepeatDiceConfig();
+        this.defenderRepeatRollConfig = getDefaultRepeatRollConfig();
+        this.defenderRepeatDiceConfig = getDefaultRepeatDiceConfig();
 
         this.init();
     }
@@ -119,8 +135,20 @@ class WarcrowCalculator {
 
         document.getElementById('reset-pool')?.addEventListener('click', () => {
             this.analysisPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
+            this.analysisPipeline.steps = [];
+            this.analysisRepeatRollConfig = getDefaultRepeatRollConfig();
+            this.analysisRepeatDiceConfig = getDefaultRepeatDiceConfig();
             this.syncCountsFromState();
             this.hideResults();
+            this.renderPipelineEditor('analysis', this.analysisPipeline);
+            // Reset reroll UI
+            const enableRepeat = document.getElementById('enable-repeat-roll') as HTMLInputElement;
+            const enableRepeatDice = document.getElementById('enable-repeat-dice') as HTMLInputElement;
+            if (enableRepeat) enableRepeat.checked = false;
+            if (enableRepeatDice) enableRepeatDice.checked = false;
+            // Trigger change events to update UI
+            if (enableRepeat) enableRepeat.dispatchEvent(new Event('change'));
+            if (enableRepeatDice) enableRepeatDice.dispatchEvent(new Event('change'));
             if (this.isSimulating) {
                 this.pendingAnalysisRun = true;
             } else {
@@ -132,8 +160,30 @@ class WarcrowCalculator {
         document.getElementById('reset-combat')?.addEventListener('click', () => {
             this.attackerPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
             this.defenderPool = { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 };
+            this.attackerPipeline.steps = [];
+            this.defenderPipeline.steps = [];
+            this.attackerRepeatRollConfig = getDefaultRepeatRollConfig();
+            this.attackerRepeatDiceConfig = getDefaultRepeatDiceConfig();
+            this.defenderRepeatRollConfig = getDefaultRepeatRollConfig();
+            this.defenderRepeatDiceConfig = getDefaultRepeatDiceConfig();
             this.syncCountsFromState();
             this.hideCombatResults();
+            this.renderPipelineEditor('attacker', this.attackerPipeline);
+            this.renderPipelineEditor('defender', this.defenderPipeline);
+            // Reset attacker reroll UI
+            const enableAttackerRepeat = document.getElementById('enable-attacker-repeat-roll') as HTMLInputElement;
+            const enableAttackerRepeatDice = document.getElementById('enable-attacker-repeat-dice') as HTMLInputElement;
+            if (enableAttackerRepeat) enableAttackerRepeat.checked = false;
+            if (enableAttackerRepeatDice) enableAttackerRepeatDice.checked = false;
+            if (enableAttackerRepeat) enableAttackerRepeat.dispatchEvent(new Event('change'));
+            if (enableAttackerRepeatDice) enableAttackerRepeatDice.dispatchEvent(new Event('change'));
+            // Reset defender reroll UI
+            const enableDefenderRepeat = document.getElementById('enable-defender-repeat-roll') as HTMLInputElement;
+            const enableDefenderRepeatDice = document.getElementById('enable-defender-repeat-dice') as HTMLInputElement;
+            if (enableDefenderRepeat) enableDefenderRepeat.checked = false;
+            if (enableDefenderRepeatDice) enableDefenderRepeatDice.checked = false;
+            if (enableDefenderRepeat) enableDefenderRepeat.dispatchEvent(new Event('change'));
+            if (enableDefenderRepeatDice) enableDefenderRepeatDice.dispatchEvent(new Event('change'));
             if (this.isCombatSimulating) {
                 this.pendingCombatRun = true;
             } else {
@@ -269,7 +319,63 @@ class WarcrowCalculator {
         return step;
     }
 
-    initPostProcessingUI() {}
+    initPostProcessingUI() {
+        // Initialize Repeat Roll UI
+        initRepeatRollUI(
+            'repeat-roll-section',
+            this.analysisRepeatRollConfig,
+            (config) => {
+                this.analysisRepeatRollConfig = config;
+                this.scheduleAnalysisRun();
+            }
+        );
+
+        // Initialize Repeat Dice UI
+        initRepeatDiceUI(
+            'repeat-dice-section',
+            this.analysisRepeatDiceConfig,
+            (config) => {
+                this.analysisRepeatDiceConfig = config;
+                this.scheduleAnalysisRun();
+            }
+        );
+
+        // Initialize Attacker Reroll UI
+        initRepeatRollUI(
+            'attacker-repeat-roll-section',
+            this.attackerRepeatRollConfig,
+            (config) => {
+                this.attackerRepeatRollConfig = config;
+                this.scheduleCombatRun();
+            }
+        );
+        initRepeatDiceUI(
+            'attacker-repeat-dice-section',
+            this.attackerRepeatDiceConfig,
+            (config) => {
+                this.attackerRepeatDiceConfig = config;
+                this.scheduleCombatRun();
+            }
+        );
+
+        // Initialize Defender Reroll UI
+        initRepeatRollUI(
+            'defender-repeat-roll-section',
+            this.defenderRepeatRollConfig,
+            (config) => {
+                this.defenderRepeatRollConfig = config;
+                this.scheduleCombatRun();
+            }
+        );
+        initRepeatDiceUI(
+            'defender-repeat-dice-section',
+            this.defenderRepeatDiceConfig,
+            (config) => {
+                this.defenderRepeatDiceConfig = config;
+                this.scheduleCombatRun();
+            }
+        );
+    }
 
     loadPipelinesFromStorage(): void {
         try {
@@ -429,7 +535,14 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const results = await this.sim.runAnalysisWithPipeline(this.analysisPool, this.facesByColor as FacesByColor, simulationCount, this.analysisPipeline);
+            const results = await this.sim.runAnalysisWithPipeline(
+                this.analysisPool, 
+                this.facesByColor as FacesByColor, 
+                simulationCount, 
+                this.analysisPipeline,
+                this.analysisRepeatRollConfig,
+                this.analysisRepeatDiceConfig
+            );
             this.lastSimulationData = results;
             this.resultsOutdated = false;
             this.showResults(results);
@@ -454,7 +567,18 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const results = await this.sim.runCombatWithPipeline(this.attackerPool, this.defenderPool, this.facesByColor as FacesByColor, simulationCount, this.attackerPipeline, this.defenderPipeline);
+            const results = await this.sim.runCombatWithPipeline(
+                this.attackerPool, 
+                this.defenderPool, 
+                this.facesByColor as FacesByColor, 
+                simulationCount, 
+                this.attackerPipeline, 
+                this.defenderPipeline,
+                this.attackerRepeatRollConfig,
+                this.attackerRepeatDiceConfig,
+                this.defenderRepeatRollConfig,
+                this.defenderRepeatDiceConfig
+            );
             this.lastCombatSimulationData = results;
             this.combatResultsOutdated = false;
             this.showCombatResults(results);

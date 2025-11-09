@@ -2,7 +2,7 @@ export function makeDeterministicRng(sequence: number[]): () => number {
   let i = 0;
   const len = sequence.length;
   return () => {
-    const v = sequence[i % len];
+    const v = sequence[i % len] || 0;
     i++;
     return Math.min(0.999999, Math.max(0, v));
   };

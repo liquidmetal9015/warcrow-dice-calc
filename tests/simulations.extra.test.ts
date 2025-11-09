@@ -17,12 +17,12 @@ describe('combat simulation consistency', () => {
     const rng = makeLinearRng(0.07, 0.233);
     const base = await performCombatSimulationWithPipeline(
       { Red: 2 }, { Blue: 2 }, facesByColorStub, 1200,
-      new Pipeline([]), new Pipeline([]), rng
+      new Pipeline([]), new Pipeline([]), null, null, null, null, rng
     );
     const buffed = await performCombatSimulationWithPipeline(
       { Red: 2 }, { Blue: 2 }, facesByColorStub, 1200,
       new Pipeline([ new AddSymbolsStep('a', true, { hits: 1 }), new CombatSwitchStep('c', true, { costSymbol: 'specials', costCount: 1, selfDelta: { hits: 1 }, max: 1 }) ]),
-      new Pipeline([]), rng
+      new Pipeline([]), null, null, null, null, rng
     );
     expect(buffed.expected.attackerHits).toBeGreaterThanOrEqual(base.expected.attackerHits);
     // probabilities should be well-formed

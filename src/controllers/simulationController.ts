@@ -2,6 +2,7 @@ import type { FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Aggrega
 import { performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline } from '../dice';
 import type { Pipeline } from '../pipeline';
 import { serializePipeline } from '../pipelineSerialization';
+import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
 
 type WorkerRequest = { resolve: (v: any) => void; reject: (e: any) => void };
 
@@ -48,13 +49,23 @@ export class SimulationController {
     facesByColor: FacesByColor,
     simulationCount: number,
     pipeline: Pipeline,
+    repeatRollConfig?: RepeatRollConfig | null,
+    repeatDiceConfig?: RepeatDiceConfig | null,
     rng: RNG = Math.random
   ): Promise<MonteCarloResults> {
     if (this.worker) {
       const pipelineSerialized = serializePipeline(pipeline);
-      return await this.callWorker({ type: 'analysis', pool, facesByColor, simulationCount, pipeline: pipelineSerialized });
+      return await this.callWorker({ 
+        type: 'analysis', 
+        pool, 
+        facesByColor, 
+        simulationCount, 
+        pipeline: pipelineSerialized,
+        repeatRollConfig: repeatRollConfig || null,
+        repeatDiceConfig: repeatDiceConfig || null
+      });
     }
-    return await performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline, rng);
+    return await performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline, rng, repeatRollConfig, repeatDiceConfig);
   }
 
   async runCombatWithPipeline(
@@ -64,14 +75,42 @@ export class SimulationController {
     simulationCount: number,
     attackerPipeline: Pipeline,
     defenderPipeline: Pipeline,
+    attackerRepeatRollConfig?: RepeatRollConfig | null,
+    attackerRepeatDiceConfig?: RepeatDiceConfig | null,
+    defenderRepeatRollConfig?: RepeatRollConfig | null,
+    defenderRepeatDiceConfig?: RepeatDiceConfig | null,
     rng: RNG = Math.random
   ): Promise<CombatResults> {
     if (this.worker) {
       const attackerSer = serializePipeline(attackerPipeline);
       const defenderSer = serializePipeline(defenderPipeline);
-      return await this.callWorker({ type: 'combat', attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline: attackerSer, defenderPipeline: defenderSer });
+      return await this.callWorker({ 
+        type: 'combat', 
+        attackerPool, 
+        defenderPool, 
+        facesByColor, 
+        simulationCount, 
+        attackerPipeline: attackerSer, 
+        defenderPipeline: defenderSer,
+        attackerRepeatRollConfig: attackerRepeatRollConfig || null,
+        attackerRepeatDiceConfig: attackerRepeatDiceConfig || null,
+        defenderRepeatRollConfig: defenderRepeatRollConfig || null,
+        defenderRepeatDiceConfig: defenderRepeatDiceConfig || null
+      });
     }
-    return await performCombatSimulationWithPipeline(attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline, defenderPipeline, rng);
+    return await performCombatSimulationWithPipeline(
+      attackerPool, 
+      defenderPool, 
+      facesByColor, 
+      simulationCount, 
+      attackerPipeline, 
+      defenderPipeline, 
+      attackerRepeatRollConfig || null,
+      attackerRepeatDiceConfig || null,
+      defenderRepeatRollConfig || null,
+      defenderRepeatDiceConfig || null,
+      rng
+    );
   }
 }
 

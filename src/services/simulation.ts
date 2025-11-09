@@ -1,5 +1,7 @@
 import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../dice';
 import { incJoint, normalizeDistribution, normalizeJoint } from '../utils/distribution';
+import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
+import { simulateDiceRollWithRerolls } from '../dice';
 
 export type RollFn = (pool: Pool, facesByColor: FacesByColor, rng: RNG) => Aggregate;
 
@@ -10,10 +12,12 @@ export interface AnalysisRunOptions {
   rng?: RNG;
   roll: RollFn;
   transformAggregate?: (agg: Aggregate) => Aggregate;
+  repeatRollConfig?: RepeatRollConfig | null;
+  repeatDiceConfig?: RepeatDiceConfig | null;
 }
 
 export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCarloResults> {
-  const { pool, facesByColor, simulationCount, roll, rng = Math.random, transformAggregate } = options;
+  const { pool, facesByColor, simulationCount, roll, rng = Math.random, transformAggregate, repeatRollConfig, repeatDiceConfig } = options;
   const results: MonteCarloResults = {
     hits: {}, blocks: {}, specials: {}, hollowHits: {}, hollowBlocks: {}, hollowSpecials: {},
     totalHits: {}, totalBlocks: {}, totalSpecials: {},
@@ -23,9 +27,15 @@ export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCar
     timestamp: new Date().toLocaleTimeString()
   };
 
+  // Use combined reroll function if either enabled
+  const hasRerolls = repeatRollConfig?.enabled || repeatDiceConfig?.enabled;
+  const rollFn = hasRerolls
+    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, repeatRollConfig || null, repeatDiceConfig || null, r)
+    : roll;
+
   let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
   for (let i = 0; i < simulationCount; i++) {
-    const pre = roll(pool, facesByColor, rng);
+    const pre = rollFn(pool, facesByColor, rng);
     const agg = transformAggregate ? transformAggregate(pre) : pre;
 
     results.hits[agg.hits] = (results.hits[agg.hits] || 0) + 1;
@@ -110,10 +120,18 @@ export interface CombatRunOptions {
   rng?: RNG;
   roll: RollFn;
   transforms?: CombatTransforms;
+  attackerRepeatRollConfig?: RepeatRollConfig | null;
+  attackerRepeatDiceConfig?: RepeatDiceConfig | null;
+  defenderRepeatRollConfig?: RepeatRollConfig | null;
+  defenderRepeatDiceConfig?: RepeatDiceConfig | null;
 }
 
 export async function runCombat(options: CombatRunOptions): Promise<CombatResults> {
-  const { attackerPool, defenderPool, facesByColor, simulationCount, roll, rng = Math.random, transforms } = options;
+  const { 
+    attackerPool, defenderPool, facesByColor, simulationCount, roll, rng = Math.random, transforms,
+    attackerRepeatRollConfig, attackerRepeatDiceConfig,
+    defenderRepeatRollConfig, defenderRepeatDiceConfig
+  } = options;
   const results: CombatResults = {
     woundsAttacker: {}, woundsDefender: {}, attackerSpecialsDist: {}, defenderSpecialsDist: {},
     expected: { attackerHits: 0, attackerSpecials: 0, attackerBlocks: 0, defenderHits: 0, defenderSpecials: 0, defenderBlocks: 0, woundsAttacker: 0, woundsDefender: 0 },
@@ -121,10 +139,22 @@ export async function runCombat(options: CombatRunOptions): Promise<CombatResult
     timestamp: new Date().toLocaleTimeString()
   };
 
+  // Setup roll functions with rerolls
+  const attackerHasRerolls = attackerRepeatRollConfig?.enabled || attackerRepeatDiceConfig?.enabled;
+  const defenderHasRerolls = defenderRepeatRollConfig?.enabled || defenderRepeatDiceConfig?.enabled;
+  
+  const attackerRollFn = attackerHasRerolls
+    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, attackerRepeatRollConfig || null, attackerRepeatDiceConfig || null, r)
+    : roll;
+  
+  const defenderRollFn = defenderHasRerolls
+    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, defenderRepeatRollConfig || null, defenderRepeatDiceConfig || null, r)
+    : roll;
+
   let attackerWins = 0, attackerTies = 0, attackerLosses = 0;
   for (let i = 0; i < simulationCount; i++) {
-    const preA = roll(attackerPool, facesByColor, rng);
-    const preD = roll(defenderPool, facesByColor, rng);
+    const preA = attackerRollFn(attackerPool, facesByColor, rng);
+    const preD = defenderRollFn(defenderPool, facesByColor, rng);
     const attacker = transforms?.attacker?.transformAggregate ? transforms.attacker.transformAggregate(preA) : preA;
     const defender = transforms?.defender?.transformAggregate ? transforms.defender.transformAggregate(preD) : preD;
 

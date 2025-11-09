@@ -1843,3 +1843,20 @@ details.accordion[open] > summary::after {
   color: var(--color-success);
   border: 1px solid rgba(var(--color-success-rgb), var(--status-border-opacity));
 }
+
+/* Collapsible reroll cards */
+details.card[open] > summary span:last-child {
+  transform: rotate(180deg);
+}
+
+details.card > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.card > summary {
+  outline: none;
+}
+
+details.card > summary:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}

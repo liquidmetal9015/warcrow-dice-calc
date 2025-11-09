@@ -3,9 +3,30 @@ import { runAnalysis, runCombat } from '../services/simulation';
 import { simulateDiceRoll, type FacesByColor, type Pool, type RNG, type Aggregate } from '../dice';
 import type { SerializedPipelineStep } from '../pipeline';
 import { buildPipelineFromSerialized } from '../pipelineSerialization';
+import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
 
-type AnalysisMsg = { type: 'analysis'; pool: Pool; facesByColor: FacesByColor; simulationCount: number; pipeline?: SerializedPipelineStep[] };
-type CombatMsg = { type: 'combat'; attackerPool: Pool; defenderPool: Pool; facesByColor: FacesByColor; simulationCount: number; attackerPipeline?: SerializedPipelineStep[]; defenderPipeline?: SerializedPipelineStep[] };
+type AnalysisMsg = { 
+  type: 'analysis'; 
+  pool: Pool; 
+  facesByColor: FacesByColor; 
+  simulationCount: number; 
+  pipeline?: SerializedPipelineStep[];
+  repeatRollConfig?: RepeatRollConfig | null;
+  repeatDiceConfig?: RepeatDiceConfig | null;
+};
+type CombatMsg = { 
+  type: 'combat'; 
+  attackerPool: Pool; 
+  defenderPool: Pool; 
+  facesByColor: FacesByColor; 
+  simulationCount: number; 
+  attackerPipeline?: SerializedPipelineStep[]; 
+  defenderPipeline?: SerializedPipelineStep[];
+  attackerRepeatRollConfig?: RepeatRollConfig | null;
+  attackerRepeatDiceConfig?: RepeatDiceConfig | null;
+  defenderRepeatRollConfig?: RepeatRollConfig | null;
+  defenderRepeatDiceConfig?: RepeatDiceConfig | null;
+};
 type InMsg = AnalysisMsg | CombatMsg;
 
 const rngFromSeed = (seed: number): RNG => {
@@ -36,7 +57,9 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
           const state = { dice: [], rollDetails: [], aggregate: { ...pre } } as any;
           pipeline.applyPost(state);
           return state.aggregate as Aggregate;
-        } : undefined
+        } : undefined,
+        repeatRollConfig: msg.repeatRollConfig || null,
+        repeatDiceConfig: msg.repeatDiceConfig || null
       });
       (self as any).postMessage({ requestId, ok: true, data: res });
       return;
@@ -68,7 +91,11 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
             },
             applyCombat: (self, opp) => defenderPipeline.applyCombat(self, opp, 'defender')
           } : undefined
-        }
+        },
+        attackerRepeatRollConfig: msg.attackerRepeatRollConfig || null,
+        attackerRepeatDiceConfig: msg.attackerRepeatDiceConfig || null,
+        defenderRepeatRollConfig: msg.defenderRepeatRollConfig || null,
+        defenderRepeatDiceConfig: msg.defenderRepeatDiceConfig || null
       });
       (self as any).postMessage({ requestId, ok: true, data: res });
       return;

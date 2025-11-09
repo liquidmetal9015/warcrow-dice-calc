@@ -174,7 +174,9 @@ export async function performMonteCarloSimulationWithPipeline(
   facesByColor: FacesByColor,
   simulationCount: number,
   pipeline: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void },
-  rng: RNG = Math.random
+  rng: RNG = Math.random,
+  repeatRollConfig?: RepeatRollConfig | null,
+  repeatDiceConfig?: RepeatDiceConfig | null
 ): Promise<MonteCarloResults> {
   return runAnalysis({
     pool,
@@ -182,7 +184,9 @@ export async function performMonteCarloSimulationWithPipeline(
     simulationCount,
     rng,
     roll: simulateDiceRoll,
-    transformAggregate: (pre) => applyPipelineToAggregate(pre, pipeline)
+    transformAggregate: (pre) => applyPipelineToAggregate(pre, pipeline),
+    repeatRollConfig: repeatRollConfig || null,
+    repeatDiceConfig: repeatDiceConfig || null
   });
 }
 
@@ -219,6 +223,10 @@ export async function performCombatSimulationWithPipeline(
   simulationCount: number,
   attackerPipeline: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void; applyCombat?: (self: Aggregate, opp: Aggregate, role: 'attacker'|'defender') => void },
   defenderPipeline: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void; applyCombat?: (self: Aggregate, opp: Aggregate, role: 'attacker'|'defender') => void },
+  attackerRepeatRollConfig: RepeatRollConfig | null = null,
+  attackerRepeatDiceConfig: RepeatDiceConfig | null = null,
+  defenderRepeatRollConfig: RepeatRollConfig | null = null,
+  defenderRepeatDiceConfig: RepeatDiceConfig | null = null,
   rng: RNG = Math.random
 ): Promise<CombatResults> {
   return runCombat({
@@ -241,8 +249,319 @@ export async function performCombatSimulationWithPipeline(
           ? (self, opp) => defenderPipeline.applyCombat!(self, opp, 'defender')
           : undefined
       }
-    }
+    },
+    attackerRepeatRollConfig,
+    attackerRepeatDiceConfig,
+    defenderRepeatRollConfig,
+    defenderRepeatDiceConfig
   });
+}
+
+// ============================================================================
+// Reroll Functionality
+// ============================================================================
+
+import type {
+  RerollCondition,
+  RepeatRollConfig,
+  DieRoll,
+  RollResult,
+  RerollValueWeights,
+  RepeatDiceConfig
+} from './types/reroll';
+
+/**
+ * Calculate expected value for a specific symbol from pool composition
+ */
+export function computePoolExpectedValue(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  symbol: keyof Aggregate
+): number {
+  let total = 0;
+  
+  for (const [color, count] of Object.entries(pool)) {
+    const colorKey = normalizeColor(color);
+    const faces = facesByColor[colorKey];
+    if (!faces) continue;
+    
+    let colorTotal = 0;
+    for (const face of faces) {
+      const symbols = countSymbolsFromFace(face);
+      colorTotal += symbols[symbol] || 0;
+    }
+    
+    const colorExpected = colorTotal / 8; // average per die
+    total += colorExpected * count;
+  }
+  
+  return total; // total expected for entire pool
+}
+
+/**
+ * Check if reroll condition is met
+ */
+export function shouldRerollAggregate(
+  agg: Aggregate,
+  condition: RerollCondition,
+  pool: Pool,
+  facesByColor: FacesByColor
+): boolean {
+  const actual = agg[condition.symbol] || 0;
+  
+  switch (condition.type) {
+    case 'BelowExpected':
+      const expected = computePoolExpectedValue(pool, facesByColor, condition.symbol);
+      return actual < expected;
+    
+    case 'MinSymbol':
+      return actual < (condition.threshold || 0);
+    
+    case 'NoSymbol':
+      return actual === 0;
+  }
+  
+  return false;
+}
+
+/**
+ * Roll with detailed individual die tracking
+ */
+export function simulateDiceRollDetailed(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  rng: RNG = Math.random
+): RollResult {
+  const dice: DieRoll[] = [];
+  const agg = blankAggregate();
+  
+  for (const [color, count] of Object.entries(pool)) {
+    const colorKey = normalizeColor(color);
+    const faces = facesByColor[colorKey];
+    if (!faces) continue;
+    
+    for (let i = 0; i < count; i++) {
+      const faceIndex = Math.floor(rng() * 8);
+      const face = faces[faceIndex];
+      if (!face) continue;
+      const symbols = countSymbolsFromFace(face);
+      
+      dice.push({ color: colorKey, faceIndex, symbols });
+      
+      // Aggregate
+      agg.hits += symbols.hits;
+      agg.blocks += symbols.blocks;
+      agg.specials += symbols.specials;
+      agg.hollowHits += symbols.hollowHits;
+      agg.hollowBlocks += symbols.hollowBlocks;
+      agg.hollowSpecials += symbols.hollowSpecials;
+    }
+  }
+  
+  return { dice, aggregate: agg };
+}
+
+/**
+ * Compute expected value per die color based on weights
+ */
+export function computeColorExpectedValues(
+  facesByColor: FacesByColor,
+  weights: RerollValueWeights
+): Record<string, number> {
+  const expectations: Record<string, number> = {};
+  
+  for (const [color, faces] of Object.entries(facesByColor)) {
+    let totalValue = 0;
+    
+    for (const face of faces) {
+      const symbols = countSymbolsFromFace(face);
+      const value = (
+        symbols.hits * weights.hits +
+        symbols.blocks * weights.blocks +
+        symbols.specials * weights.specials +
+        symbols.hollowHits * weights.hollowHits +
+        symbols.hollowBlocks * weights.hollowBlocks +
+        symbols.hollowSpecials * weights.hollowSpecials
+      );
+      totalValue += value;
+    }
+    
+    expectations[color] = totalValue / 8;
+  }
+  
+  return expectations;
+}
+
+/**
+ * Score individual die relative to its color's expected value
+ */
+export function scoreDie(
+  die: DieRoll,
+  weights: RerollValueWeights,
+  colorExpectations: Record<string, number>
+): number {
+  const actualValue = (
+    die.symbols.hits * weights.hits +
+    die.symbols.blocks * weights.blocks +
+    die.symbols.specials * weights.specials +
+    die.symbols.hollowHits * weights.hollowHits +
+    die.symbols.hollowBlocks * weights.hollowBlocks +
+    die.symbols.hollowSpecials * weights.hollowSpecials
+  );
+  
+  const expectedValue = colorExpectations[die.color] || 0;
+  
+  // Negative = underperformed, Positive = overperformed
+  return actualValue - expectedValue;
+}
+
+/**
+ * Select worst-performing dice to reroll
+ */
+export function selectDiceToReroll(
+  dice: DieRoll[],
+  maxRerolls: number,
+  weights: RerollValueWeights,
+  facesByColor: FacesByColor
+): number[] {
+  const colorExpectations = computeColorExpectedValues(facesByColor, weights);
+  
+  const scored = dice.map((die, idx) => ({
+    idx,
+    score: scoreDie(die, weights, colorExpectations)
+  }));
+  
+  // Sort ascending (worst first)
+  scored.sort((a, b) => a.score - b.score);
+  
+  // Return indices of worst N dice
+  return scored.slice(0, Math.min(maxRerolls, dice.length)).map(s => s.idx);
+}
+
+/**
+ * Get weights for priority mode
+ */
+export function getWeightsForPriorityMode(
+  mode: 'hits' | 'blocks' | 'specials' | 'balanced',
+  countHollowAsFilled: boolean
+): RerollValueWeights {
+  const defaults = { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
+  
+  // If counting hollow as filled, use same weights as filled
+  const hollowMultiplier = countHollowAsFilled ? 1 : 0.5;
+  
+  switch (mode) {
+    case 'hits':
+      return { 
+        ...defaults, 
+        hits: 2, 
+        specials: 1, 
+        hollowHits: 2 * hollowMultiplier,
+        hollowSpecials: 1 * hollowMultiplier
+      };
+    case 'blocks':
+      return { 
+        ...defaults, 
+        blocks: 2, 
+        specials: 1, 
+        hollowBlocks: 2 * hollowMultiplier,
+        hollowSpecials: 1 * hollowMultiplier
+      };
+    case 'specials':
+      return {
+        ...defaults,
+        specials: 2,
+        hits: 1,
+        blocks: 1,
+        hollowSpecials: 2 * hollowMultiplier,
+        hollowHits: 1 * hollowMultiplier,
+        hollowBlocks: 1 * hollowMultiplier
+      };
+    case 'balanced':
+      return { 
+        hits: 1.5, 
+        blocks: 1.5, 
+        specials: 1, 
+        hollowHits: 1.5 * hollowMultiplier, 
+        hollowBlocks: 1.5 * hollowMultiplier, 
+        hollowSpecials: 1 * hollowMultiplier
+      };
+    default:
+      return defaults;
+  }
+}
+
+/**
+ * Simulate dice roll with both full and selective rerolls
+ * Sequence: Initial roll → Full reroll (once if triggered) → Selective reroll (up to X dice)
+ */
+export function simulateDiceRollWithRerolls(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  repeatRollConfig: RepeatRollConfig | null,
+  repeatDiceConfig: RepeatDiceConfig | null,
+  rng: RNG = Math.random
+): Aggregate {
+  let agg: Aggregate;
+  let dice: DieRoll[] | null = null;
+  
+  // Determine if we need detailed tracking from the start
+  const needsDetailed = repeatDiceConfig?.enabled;
+  
+  if (needsDetailed) {
+    // Phase 1: Initial roll with detailed tracking
+    let result = simulateDiceRollDetailed(pool, facesByColor, rng);
+    dice = result.dice;
+    agg = result.aggregate;
+    
+    // Phase 2: Full reroll if enabled and condition met
+    if (repeatRollConfig?.enabled && shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
+      // Reroll the whole pool once with detailed tracking
+      result = simulateDiceRollDetailed(pool, facesByColor, rng);
+      dice = result.dice;
+      agg = result.aggregate;
+    }
+    
+    // Phase 3: Selective reroll (repeat dice)
+    const weights = getWeightsForPriorityMode(repeatDiceConfig.priorityMode, repeatDiceConfig.countHollowAsFilled);
+    const toReroll = selectDiceToReroll(dice, repeatDiceConfig.maxDiceToReroll, weights, facesByColor);
+    
+    for (const idx of toReroll) {
+      const die = dice[idx];
+      if (!die) continue;
+      const faces = facesByColor[die.color];
+      if (!faces) continue;
+      
+      const newFaceIndex = Math.floor(rng() * 8);
+      const newFace = faces[newFaceIndex];
+      if (!newFace) continue;
+      const newSymbols = countSymbolsFromFace(newFace);
+      
+      dice[idx] = { color: die.color, faceIndex: newFaceIndex, symbols: newSymbols };
+    }
+    
+    // Re-aggregate after repeat dice
+    agg = blankAggregate();
+    for (const die of dice) {
+      agg.hits += die.symbols.hits;
+      agg.blocks += die.symbols.blocks;
+      agg.specials += die.symbols.specials;
+      agg.hollowHits += die.symbols.hollowHits;
+      agg.hollowBlocks += die.symbols.hollowBlocks;
+      agg.hollowSpecials += die.symbols.hollowSpecials;
+    }
+  } else if (repeatRollConfig?.enabled) {
+    // Only full reroll enabled (no detailed tracking needed)
+    agg = simulateDiceRoll(pool, facesByColor, rng);
+    if (shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
+      agg = simulateDiceRoll(pool, facesByColor, rng); // reroll once
+    }
+  } else {
+    // No rerolls at all
+    agg = simulateDiceRoll(pool, facesByColor, rng);
+  }
+  
+  return agg;
 }
 
 

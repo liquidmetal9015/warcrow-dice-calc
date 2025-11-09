@@ -1,0 +1,212 @@
+# Warcrow Dice Calculator - Project Rules
+
+## Project Overview
+
+This is a TypeScript/Vite web application that provides Monte Carlo simulation and probability analysis for the Warcrow tabletop game dice system. The app calculates roll probabilities, combat outcomes, and provides statistical visualizations using Chart.js and Plotly.
+
+## Core Concepts
+
+### Dice System
+- **Attack Dice**: Red, Orange, Yellow
+- **Defense Dice**: Green, Blue, Black
+- Each die has 8 faces with various symbol combinations
+- Dice faces loaded from `public/warcrow_dice_faces.json`
+
+### Symbol Types
+- `HIT` / `HOLLOW_HIT` - Attack symbols
+- `BLOCK` / `HOLLOW_BLOCK` - Defense symbols  
+- `SPECIAL` / `HOLLOW_SPECIAL` - Special abilities
+- Hollow symbols can be converted to filled symbols through game mechanics
+
+### Core Features
+1. **Roll Calculator** - Single pool analysis with distributions
+2. **Face-to-Face Combat** - Two-sided combat simulation
+3. **Dice Reference** - Visual reference of all dice faces
+4. **Post-processing Pipelines** - Modify roll outcomes with steps like:
+   - `AddSymbols` - Add automatic symbols
+   - `ElitePromotion` - Promote hollow to filled
+   - `SwitchSymbols` - Exchange symbol types
+   - `CombatSwitch` - Combat-specific symbol switching
+
+## Tech Stack
+
+- **Build**: Vite 5.x
+- **Language**: TypeScript 5.x (strict mode)
+- **Testing**: Vitest with coverage via @vitest/coverage-v8
+- **Visualization**: Chart.js 4.x, Plotly 2.x
+- **Runtime**: Node.js >=20.0.0
+- **No Framework**: Vanilla TypeScript with DOM manipulation
+
+## Code Style & Standards
+
+### TypeScript
+- Use strict type checking
+- Prefer `type` over `interface` for type aliases
+- Use `const` for immutable bindings, avoid `var`
+- Prefer `readonly` arrays and objects for data structures
+- Use union types for discriminated variants (e.g., `SymbolKey`)
+
+### Naming Conventions
+- Types: PascalCase (e.g., `Aggregate`, `MonteCarloResults`)
+- Functions: camelCase (e.g., `simulateDiceRoll`, `normalizeColor`)
+- Constants: UPPER_SNAKE_CASE for enums (e.g., `DS.HIT`)
+- Files: camelCase for modules (e.g., `dice.ts`, `pipelineSerialization.ts`)
+
+### Function Design
+- Keep functions pure when possible (e.g., simulation functions)
+- Use RNG parameter injection for testability
+- Prefer small, focused functions with single responsibility
+- Document complex algorithms with comments
+
+### Immutability
+- Use `Object.freeze()` for constants
+- Use `readonly` for type properties
+- Avoid mutating input parameters
+- Return new objects/aggregates rather than modifying in-place
+
+## Architecture
+
+### Module Organization
+```
+src/
+├── app.ts                    # Main application entry
+├── constants.ts              # App-wide constants
+├── dice.ts                   # Core dice logic & simulation
+├── pipeline.ts               # Post-processing steps
+├── pipelineSerialization.ts  # Pipeline save/load
+├── controllers/              # UI controllers
+├── services/                 # Simulation services
+├── types/                    # Type definitions
+├── ui/                       # UI components
+├── utils/                    # Utility functions
+└── workers/                  # Web Workers for heavy computation
+```
+
+### Key Principles
+1. **Separation of Concerns**: Core logic (dice.ts) separate from UI
+2. **Testability**: Pure functions with dependency injection
+3. **Performance**: Use Web Workers for heavy Monte Carlo simulations
+4. **Type Safety**: Strict typing throughout, no `any` unless absolutely necessary
+5. **Data Validation**: Validate external data (dice faces JSON)
+
+## Testing
+
+- Write tests for all core simulation logic
+- Use Vitest for unit tests
+- Mock RNG for deterministic testing
+- Test edge cases (empty pools, invalid colors, etc.)
+- Run tests: `npm test`
+- Watch mode: `npm test:watch`
+- Coverage: `npm run test:cov`
+
+## Simulation Logic
+
+### Monte Carlo Approach
+- Default simulation count for accurate results: 10,000+ iterations
+- Use seeded RNG for reproducible tests
+- Aggregate results into distributions (histograms)
+- Calculate expected values and standard deviations
+- Support joint distributions for correlated outcomes
+
+### Performance Considerations
+- Use typed arrays for performance-critical loops
+- Minimize allocations in hot paths (simulation loops)
+- Pre-allocate distribution objects
+- Consider Web Workers for simulations >50,000 iterations
+
+## UI Guidelines
+
+### DOM Manipulation
+- Use semantic HTML with ARIA labels for accessibility
+- Query selectors cached where appropriate
+- Event delegation for dynamic content
+- Update charts efficiently (destroy/recreate vs update)
+
+### Visual Design
+- Modern, clean interface
+- Responsive design
+- Loading states with skeletons
+- Clear visual distinction between attack/defense dice
+- Use color consistently (matches dice colors)
+
+## Build & Deployment
+
+- **Dev server**: `npm run dev` (Vite dev server with HMR)
+- **Build**: `npm run build` (outputs to `dist/`)
+- **Preview**: `npm run preview` (test production build)
+- **Type check**: `npm run typecheck`
+
+### Asset Handling
+- Static assets in `public/` (e.g., `warcrow_dice_faces.json`, `Warcrow.ttf`)
+- Preload critical assets (fonts, JSON data)
+- Use cache control headers appropriately
+
+## Common Patterns
+
+### Creating Aggregates
+```typescript
+const agg = blankAggregate();
+// Mutate locally, then return
+agg.hits += rolled.hits;
+return agg;
+```
+
+### Adding New Pipeline Steps
+1. Define step type in pipeline types
+2. Implement step logic in `pipeline.ts`
+3. Add UI controls in `index.html`
+4. Update serialization in `pipelineSerialization.ts`
+5. Add tests for new step
+
+### Adding New Dice Colors
+1. Update `warcrow_dice_faces.json` with 8 faces
+2. Add to `normalizeColor()` if needed
+3. Update `isAttackColor()` if applicable
+4. Add UI controls and styling
+
+## Debugging
+
+- Use browser DevTools for debugging
+- Enable source maps (default in dev mode)
+- Check Network tab for failed asset loads
+- Console.log simulation results for verification
+- Use `rng` parameter to create reproducible scenarios
+
+## Files to Never Modify
+
+- `node_modules/` - managed by npm
+- `dist/` - build output
+- `coverage/` - test coverage output
+- `__pycache__/` - Python cache (if any scripts)
+
+## External Dependencies
+
+- Minimize external dependencies
+- Use CDN for Chart.js and Plotly (already in HTML)
+- Keep devDependencies lean
+- No runtime dependencies (pure vanilla TS)
+
+## Version Control
+
+- Commit message format: Present tense, imperative mood
+- Keep commits focused and atomic
+- Don't commit build artifacts or `node_modules`
+- Include meaningful descriptions for complex changes
+
+## Future Extensibility
+
+When adding features:
+- Maintain backward compatibility with saved pipelines
+- Add feature flags for experimental features
+- Document breaking changes clearly
+- Consider impact on simulation performance
+- Update tests and type definitions
+
+## Important Notes
+
+- Always validate loaded dice face data (8 faces per die)
+- Cache `FacesByColor` after loading, don't reload unnecessarily
+- Remember hollow vs filled distinction in all calculations
+- Combat simulation has different outcome metrics than single-pool analysis
+- Timestamps help users track simulation freshness
+
