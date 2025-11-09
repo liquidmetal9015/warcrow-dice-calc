@@ -22,6 +22,14 @@ export type Pool = Record<string, number>;
 export type FacesByColor = Record<string, ReadonlyArray<ReadonlyArray<SymbolKey>>>;
 export type RNG = () => number;
 
+// Fixed dice configuration for "fix" mechanic
+export type FixedDie = {
+  color: string; // Normalized color (RED, ORANGE, etc.)
+  faceIndex: number; // 0-7, which face to fix
+};
+
+export type FixedDiceConfig = FixedDie[];
+
 export function normalizeColor(color: string): string {
   switch (color) {
     case 'Red': return 'RED';
@@ -58,6 +66,32 @@ export function blankAggregate(): Aggregate {
   return { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
 }
 
+// Aggregate manipulation utilities
+export function addAggregates(target: Aggregate, source: Aggregate): void {
+  target.hits += source.hits;
+  target.blocks += source.blocks;
+  target.specials += source.specials;
+  target.hollowHits += source.hollowHits;
+  target.hollowBlocks += source.hollowBlocks;
+  target.hollowSpecials += source.hollowSpecials;
+}
+
+export function subtractAggregates(target: Aggregate, source: Aggregate): void {
+  target.hits = Math.max(0, target.hits - source.hits);
+  target.blocks = Math.max(0, target.blocks - source.blocks);
+  target.specials = Math.max(0, target.specials - source.specials);
+  target.hollowHits = Math.max(0, target.hollowHits - source.hollowHits);
+  target.hollowBlocks = Math.max(0, target.hollowBlocks - source.hollowBlocks);
+  target.hollowSpecials = Math.max(0, target.hollowSpecials - source.hollowSpecials);
+}
+
+export function combineAggregates(a: Aggregate, b: Aggregate): Aggregate {
+  const result = blankAggregate();
+  addAggregates(result, a);
+  addAggregates(result, b);
+  return result;
+}
+
 export function countSymbolsFromFace(face: ReadonlyArray<SymbolKey>): Aggregate {
   const out = blankAggregate();
   for (const sym of face) {
@@ -92,6 +126,64 @@ export function simulateDiceRoll(pool: Pool, facesByColor: FacesByColor, rng: RN
       agg.hollowSpecials += rolled.hollowSpecials;
     }
   }
+  return agg;
+}
+
+/**
+ * Simulate dice roll with fixed dice applied first.
+ * Fixed dice are deterministic and not rolled.
+ * Remaining dice in the pool are rolled normally.
+ * 
+ * @param pool - Full dice pool (includes dice to be fixed)
+ * @param fixedDice - Array of fixed dice configurations
+ * @param facesByColor - Die face definitions
+ * @param rng - Random number generator
+ * @returns Aggregate of all symbols (fixed + rolled)
+ */
+export function simulateDiceRollWithFixed(
+  pool: Pool,
+  fixedDice: FixedDiceConfig,
+  facesByColor: FacesByColor,
+  rng: RNG = Math.random
+): Aggregate {
+  const agg = blankAggregate();
+  
+  // Step 1: Process fixed dice (deterministic)
+  const fixedCounts: Pool = {};
+  for (const fixed of fixedDice) {
+    const colorKey = normalizeColor(fixed.color);
+    const faces = facesByColor[colorKey];
+    if (!faces) continue;
+    
+    // Validate face index
+    const faceIndex = Math.max(0, Math.min(7, Math.floor(fixed.faceIndex)));
+    const face = faces[faceIndex] as readonly SymbolKey[];
+    const symbols = countSymbolsFromFace(face);
+    
+    // Add to aggregate
+    addAggregates(agg, symbols);
+    
+    // Track how many fixed dice per color
+    fixedCounts[colorKey] = (fixedCounts[colorKey] || 0) + 1;
+  }
+  
+  // Step 2: Create reduced pool (subtract fixed dice)
+  const reducedPool: Pool = {};
+  for (const [color, count] of Object.entries(pool)) {
+    const colorKey = normalizeColor(color);
+    const fixedCount = fixedCounts[colorKey] || 0;
+    const remainingCount = Math.max(0, count - fixedCount);
+    if (remainingCount > 0) {
+      reducedPool[colorKey] = remainingCount;
+    }
+  }
+  
+  // Step 3: Roll remaining dice normally
+  const rolledAgg = simulateDiceRoll(reducedPool, facesByColor, rng);
+  
+  // Step 4: Combine fixed and rolled aggregates
+  addAggregates(agg, rolledAgg);
+  
   return agg;
 }
 
@@ -186,6 +278,25 @@ export async function performMonteCarloSimulationWithPipeline(
   });
 }
 
+export async function performMonteCarloSimulationWithFixed(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  simulationCount: number,
+  fixedDice: FixedDiceConfig,
+  pipeline?: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void },
+  rng: RNG = Math.random
+): Promise<MonteCarloResults> {
+  return runAnalysis({
+    pool,
+    facesByColor,
+    simulationCount,
+    rng,
+    roll: (p, f, r) => simulateDiceRollWithFixed(p, fixedDice, f, r),
+    transformAggregate: pipeline ? (pre) => applyPipelineToAggregate(pre, pipeline) : undefined,
+    fixedDice
+  });
+}
+
 export interface CombatExpected {
   attackerHits: number; attackerSpecials: number; attackerBlocks: number;
   defenderHits: number; defenderSpecials: number; defenderBlocks: number;
@@ -237,6 +348,43 @@ export async function performCombatSimulationWithPipeline(
       },
       defender: {
         transformAggregate: (pre) => applyPipelineToAggregate(pre, defenderPipeline),
+        applyCombat: defenderPipeline && typeof defenderPipeline.applyCombat === 'function'
+          ? (self, opp) => defenderPipeline.applyCombat!(self, opp, 'defender')
+          : undefined
+      }
+    }
+  });
+}
+
+export async function performCombatSimulationWithFixed(
+  attackerPool: Pool,
+  defenderPool: Pool,
+  facesByColor: FacesByColor,
+  simulationCount: number,
+  attackerFixedDice: FixedDiceConfig,
+  defenderFixedDice: FixedDiceConfig,
+  attackerPipeline?: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void; applyCombat?: (self: Aggregate, opp: Aggregate, role: 'attacker'|'defender') => void },
+  defenderPipeline?: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void; applyCombat?: (self: Aggregate, opp: Aggregate, role: 'attacker'|'defender') => void },
+  rng: RNG = Math.random
+): Promise<CombatResults> {
+  return runCombat({
+    attackerPool,
+    defenderPool,
+    facesByColor,
+    simulationCount,
+    rng,
+    roll: simulateDiceRoll, // Base roll function, fixed dice applied via wrapper
+    attackerFixedDice,
+    defenderFixedDice,
+    transforms: {
+      attacker: {
+        transformAggregate: attackerPipeline ? (pre) => applyPipelineToAggregate(pre, attackerPipeline) : undefined,
+        applyCombat: attackerPipeline && typeof attackerPipeline.applyCombat === 'function'
+          ? (self, opp) => attackerPipeline.applyCombat!(self, opp, 'attacker')
+          : undefined
+      },
+      defender: {
+        transformAggregate: defenderPipeline ? (pre) => applyPipelineToAggregate(pre, defenderPipeline) : undefined,
         applyCombat: defenderPipeline && typeof defenderPipeline.applyCombat === 'function'
           ? (self, opp) => defenderPipeline.applyCombat!(self, opp, 'defender')
           : undefined

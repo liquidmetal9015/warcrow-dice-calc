@@ -1,5 +1,10 @@
-import type { FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Aggregate } from '../dice';
-import { performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline } from '../dice';
+import type { FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Aggregate, FixedDiceConfig } from '../dice';
+import { 
+  performMonteCarloSimulationWithPipeline, 
+  performMonteCarloSimulationWithFixed,
+  performCombatSimulationWithPipeline,
+  performCombatSimulationWithFixed
+} from '../dice';
 import type { Pipeline } from '../pipeline';
 import { serializePipeline } from '../pipelineSerialization';
 
@@ -48,11 +53,23 @@ export class SimulationController {
     facesByColor: FacesByColor,
     simulationCount: number,
     pipeline: Pipeline,
+    fixedDice?: FixedDiceConfig,
     rng: RNG = Math.random
   ): Promise<MonteCarloResults> {
     if (this.worker) {
       const pipelineSerialized = serializePipeline(pipeline);
-      return await this.callWorker({ type: 'analysis', pool, facesByColor, simulationCount, pipeline: pipelineSerialized });
+      return await this.callWorker({ 
+        type: 'analysis', 
+        pool, 
+        facesByColor, 
+        simulationCount, 
+        pipeline: pipelineSerialized,
+        fixedDice
+      });
+    }
+    // Use appropriate function based on whether fixed dice are present
+    if (fixedDice && fixedDice.length > 0) {
+      return await performMonteCarloSimulationWithFixed(pool, facesByColor, simulationCount, fixedDice, pipeline, rng);
     }
     return await performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline, rng);
   }
@@ -64,12 +81,34 @@ export class SimulationController {
     simulationCount: number,
     attackerPipeline: Pipeline,
     defenderPipeline: Pipeline,
+    attackerFixedDice?: FixedDiceConfig,
+    defenderFixedDice?: FixedDiceConfig,
     rng: RNG = Math.random
   ): Promise<CombatResults> {
     if (this.worker) {
       const attackerSer = serializePipeline(attackerPipeline);
       const defenderSer = serializePipeline(defenderPipeline);
-      return await this.callWorker({ type: 'combat', attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline: attackerSer, defenderPipeline: defenderSer });
+      return await this.callWorker({ 
+        type: 'combat', 
+        attackerPool, 
+        defenderPool, 
+        facesByColor, 
+        simulationCount, 
+        attackerPipeline: attackerSer, 
+        defenderPipeline: defenderSer,
+        attackerFixedDice,
+        defenderFixedDice
+      });
+    }
+    // Use appropriate function based on whether fixed dice are present
+    const hasFixedDice = (attackerFixedDice && attackerFixedDice.length > 0) || 
+                         (defenderFixedDice && defenderFixedDice.length > 0);
+    if (hasFixedDice) {
+      return await performCombatSimulationWithFixed(
+        attackerPool, defenderPool, facesByColor, simulationCount,
+        attackerFixedDice || [], defenderFixedDice || [],
+        attackerPipeline, defenderPipeline, rng
+      );
     }
     return await performCombatSimulationWithPipeline(attackerPool, defenderPool, facesByColor, simulationCount, attackerPipeline, defenderPipeline, rng);
   }

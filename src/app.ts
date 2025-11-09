@@ -1,10 +1,11 @@
 // Enhanced Warcrow Monte Carlo Calculator (TypeScript entry, UI logic)
 import { loadDiceFaces, performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline, computeDieStats, normalizeColor, isAttackColor } from './dice';
-import type { FacesByColor, MonteCarloResults, CombatResults, Aggregate } from './dice';
+import type { FacesByColor, MonteCarloResults, CombatResults, Aggregate, FixedDiceConfig } from './dice';
 import { Pipeline, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep } from './pipeline';
 import type { PipelineStep, SerializedPipelineStep } from './pipeline';
 import { serializePipeline } from './pipelineSerialization';
 import { renderPipelineEditor as renderPipelineEditorUI } from './ui/pipelineEditor';
+import { initFixedDiceUI, getFixedDiceConfig } from './ui/fixedDiceUI';
 import { SimulationController } from './controllers/simulationController';
 import { DEFAULT_SIMULATION_COUNT, DEFAULT_DEBOUNCE_MS, STORAGE_KEYS } from './constants';
 
@@ -44,6 +45,9 @@ class WarcrowCalculator {
     defenderPipeline: Pipeline;
     pipelines: Record<'analysis'|'attacker'|'defender', Pipeline>;
     sim: SimulationController;
+    analysisFixedDice: FixedDiceConfig;
+    attackerFixedDice: FixedDiceConfig;
+    defenderFixedDice: FixedDiceConfig;
     constructor() {
         this.PRESETS = {
             "basic_attack": {"Red": 1, "Orange": 0, "Yellow": 0, "Green": 0, "Blue": 0, "Black": 0},
@@ -81,6 +85,11 @@ class WarcrowCalculator {
         this.pipelines = { analysis: this.analysisPipeline, attacker: this.attackerPipeline, defender: this.defenderPipeline };
         this.sim = new SimulationController();
 
+        // Fixed dice configurations
+        this.analysisFixedDice = [];
+        this.attackerFixedDice = [];
+        this.defenderFixedDice = [];
+
         this.init();
     }
 
@@ -108,6 +117,26 @@ class WarcrowCalculator {
         this.renderPipelineEditor('analysis', this.analysisPipeline);
         this.renderPipelineEditor('attacker', this.attackerPipeline);
         this.renderPipelineEditor('defender', this.defenderPipeline);
+        
+        // Initialize fixed dice UI
+        initFixedDiceUI((scope, config) => {
+            // Update the config for the given scope
+            if (scope === 'analysis') {
+                this.analysisFixedDice = config;
+                this.scheduleAnalysisRun();
+            } else if (scope === 'attacker') {
+                this.attackerFixedDice = config;
+                this.scheduleCombatRun();
+            } else if (scope === 'defender') {
+                this.defenderFixedDice = config;
+                this.scheduleCombatRun();
+            }
+        });
+        
+        // Load fixed dice configs from storage
+        this.analysisFixedDice = getFixedDiceConfig('analysis');
+        this.attackerFixedDice = getFixedDiceConfig('attacker');
+        this.defenderFixedDice = getFixedDiceConfig('defender');
     }
 
     
@@ -429,7 +458,13 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const results = await this.sim.runAnalysisWithPipeline(this.analysisPool, this.facesByColor as FacesByColor, simulationCount, this.analysisPipeline);
+            const results = await this.sim.runAnalysisWithPipeline(
+                this.analysisPool, 
+                this.facesByColor as FacesByColor, 
+                simulationCount, 
+                this.analysisPipeline,
+                this.analysisFixedDice.length > 0 ? this.analysisFixedDice : undefined
+            );
             this.lastSimulationData = results;
             this.resultsOutdated = false;
             this.showResults(results);
@@ -454,7 +489,16 @@ class WarcrowCalculator {
         try {
             await new Promise(r => setTimeout(r, 150));
             const simulationCount = this.DEFAULT_SIMULATION_COUNT;
-            const results = await this.sim.runCombatWithPipeline(this.attackerPool, this.defenderPool, this.facesByColor as FacesByColor, simulationCount, this.attackerPipeline, this.defenderPipeline);
+            const results = await this.sim.runCombatWithPipeline(
+                this.attackerPool, 
+                this.defenderPool, 
+                this.facesByColor as FacesByColor, 
+                simulationCount, 
+                this.attackerPipeline, 
+                this.defenderPipeline,
+                this.attackerFixedDice.length > 0 ? this.attackerFixedDice : undefined,
+                this.defenderFixedDice.length > 0 ? this.defenderFixedDice : undefined
+            );
             this.lastCombatSimulationData = results;
             this.combatResultsOutdated = false;
             this.showCombatResults(results);

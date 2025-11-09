@@ -1,11 +1,30 @@
 /// <reference lib="webworker" />
 import { runAnalysis, runCombat } from '../services/simulation';
-import { simulateDiceRoll, type FacesByColor, type Pool, type RNG, type Aggregate } from '../dice';
+import { simulateDiceRoll, simulateDiceRollWithFixed, type FacesByColor, type Pool, type RNG, type Aggregate, type FixedDiceConfig } from '../dice';
 import type { SerializedPipelineStep } from '../pipeline';
 import { buildPipelineFromSerialized } from '../pipelineSerialization';
 
-type AnalysisMsg = { type: 'analysis'; pool: Pool; facesByColor: FacesByColor; simulationCount: number; pipeline?: SerializedPipelineStep[] };
-type CombatMsg = { type: 'combat'; attackerPool: Pool; defenderPool: Pool; facesByColor: FacesByColor; simulationCount: number; attackerPipeline?: SerializedPipelineStep[]; defenderPipeline?: SerializedPipelineStep[] };
+type AnalysisMsg = {
+  type: 'analysis';
+  pool: Pool;
+  facesByColor: FacesByColor;
+  simulationCount: number;
+  pipeline?: SerializedPipelineStep[];
+  fixedDice?: FixedDiceConfig;
+};
+
+type CombatMsg = {
+  type: 'combat';
+  attackerPool: Pool;
+  defenderPool: Pool;
+  facesByColor: FacesByColor;
+  simulationCount: number;
+  attackerPipeline?: SerializedPipelineStep[];
+  defenderPipeline?: SerializedPipelineStep[];
+  attackerFixedDice?: FixedDiceConfig;
+  defenderFixedDice?: FixedDiceConfig;
+};
+
 type InMsg = AnalysisMsg | CombatMsg;
 
 const rngFromSeed = (seed: number): RNG => {
@@ -26,12 +45,20 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
   try {
     if (msg.type === 'analysis') {
       const pipeline = Array.isArray(msg.pipeline) && msg.pipeline.length ? buildPipelineFromSerialized(msg.pipeline) : null;
+      const fixedDice = msg.fixedDice || [];
+      
+      // Create roll function that handles fixed dice
+      const rollFn = fixedDice.length > 0
+        ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithFixed(p, fixedDice, f, r)
+        : simulateDiceRoll;
+      
       const res = await runAnalysis({
         pool: msg.pool,
         facesByColor: msg.facesByColor,
         simulationCount: msg.simulationCount,
         rng,
-        roll: simulateDiceRoll,
+        roll: rollFn,
+        fixedDice,
         transformAggregate: pipeline ? (pre) => {
           const state = { dice: [], rollDetails: [], aggregate: { ...pre } } as any;
           pipeline.applyPost(state);
@@ -44,13 +71,18 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
     if (msg.type === 'combat') {
       const attackerPipeline = Array.isArray(msg.attackerPipeline) && msg.attackerPipeline.length ? buildPipelineFromSerialized(msg.attackerPipeline) : null;
       const defenderPipeline = Array.isArray(msg.defenderPipeline) && msg.defenderPipeline.length ? buildPipelineFromSerialized(msg.defenderPipeline) : null;
+      const attackerFixedDice = msg.attackerFixedDice || [];
+      const defenderFixedDice = msg.defenderFixedDice || [];
+      
       const res = await runCombat({
         attackerPool: msg.attackerPool,
         defenderPool: msg.defenderPool,
         facesByColor: msg.facesByColor,
         simulationCount: msg.simulationCount,
         rng,
-        roll: simulateDiceRoll,
+        roll: simulateDiceRoll, // Base roll, fixed dice handled in runCombat
+        attackerFixedDice,
+        defenderFixedDice,
         transforms: {
           attacker: attackerPipeline ? {
             transformAggregate: (pre) => {

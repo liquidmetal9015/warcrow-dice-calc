@@ -1,4 +1,4 @@
-import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../dice';
+import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution, FixedDiceConfig } from '../dice';
 import { incJoint, normalizeDistribution, normalizeJoint } from '../utils/distribution';
 
 export type RollFn = (pool: Pool, facesByColor: FacesByColor, rng: RNG) => Aggregate;
@@ -10,6 +10,7 @@ export interface AnalysisRunOptions {
   rng?: RNG;
   roll: RollFn;
   transformAggregate?: (agg: Aggregate) => Aggregate;
+  fixedDice?: FixedDiceConfig; // NEW: Fixed dice configuration
 }
 
 export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCarloResults> {
@@ -110,10 +111,12 @@ export interface CombatRunOptions {
   rng?: RNG;
   roll: RollFn;
   transforms?: CombatTransforms;
+  attackerFixedDice?: FixedDiceConfig; // NEW: Fixed dice for attacker
+  defenderFixedDice?: FixedDiceConfig; // NEW: Fixed dice for defender
 }
 
 export async function runCombat(options: CombatRunOptions): Promise<CombatResults> {
-  const { attackerPool, defenderPool, facesByColor, simulationCount, roll, rng = Math.random, transforms } = options;
+  const { attackerPool, defenderPool, facesByColor, simulationCount, roll, rng = Math.random, transforms, attackerFixedDice, defenderFixedDice } = options;
   const results: CombatResults = {
     woundsAttacker: {}, woundsDefender: {}, attackerSpecialsDist: {}, defenderSpecialsDist: {},
     expected: { attackerHits: 0, attackerSpecials: 0, attackerBlocks: 0, defenderHits: 0, defenderSpecials: 0, defenderBlocks: 0, woundsAttacker: 0, woundsDefender: 0 },
@@ -123,8 +126,23 @@ export async function runCombat(options: CombatRunOptions): Promise<CombatResult
 
   let attackerWins = 0, attackerTies = 0, attackerLosses = 0;
   for (let i = 0; i < simulationCount; i++) {
-    const preA = roll(attackerPool, facesByColor, rng);
-    const preD = roll(defenderPool, facesByColor, rng);
+    // Roll attacker dice (with fixed dice if specified)
+    const preA = (attackerFixedDice && attackerFixedDice.length > 0)
+      ? (() => {
+          // Import simulateDiceRollWithFixed inline to avoid circular dependency
+          const { simulateDiceRollWithFixed } = require('../dice');
+          return simulateDiceRollWithFixed(attackerPool, attackerFixedDice, facesByColor, rng);
+        })()
+      : roll(attackerPool, facesByColor, rng);
+    
+    // Roll defender dice (with fixed dice if specified)
+    const preD = (defenderFixedDice && defenderFixedDice.length > 0)
+      ? (() => {
+          const { simulateDiceRollWithFixed } = require('../dice');
+          return simulateDiceRollWithFixed(defenderPool, defenderFixedDice, facesByColor, rng);
+        })()
+      : roll(defenderPool, facesByColor, rng);
+    
     const attacker = transforms?.attacker?.transformAggregate ? transforms.attacker.transformAggregate(preA) : preA;
     const defender = transforms?.defender?.transformAggregate ? transforms.defender.transformAggregate(preD) : preD;
 

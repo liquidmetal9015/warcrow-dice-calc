@@ -44,8 +44,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Red" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Red</div>
+                                <div class="fixed-dice-indicator" data-color="Red" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                             <div class="dice-type" data-color="Orange">
                                 <div class="dice-icon orange-die"></div>
@@ -53,8 +57,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Orange" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Orange</div>
+                                <div class="fixed-dice-indicator" data-color="Orange" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                             <div class="dice-type" data-color="Yellow">
                                 <div class="dice-icon yellow-die"></div>
@@ -62,8 +70,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Yellow" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Yellow</div>
+                                <div class="fixed-dice-indicator" data-color="Yellow" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                         </div>
 
@@ -75,8 +87,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Green" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Green</div>
+                                <div class="fixed-dice-indicator" data-color="Green" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                             <div class="dice-type" data-color="Blue">
                                 <div class="dice-icon blue-die"></div>
@@ -84,8 +100,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Blue" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Blue</div>
+                                <div class="fixed-dice-indicator" data-color="Blue" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                             <div class="dice-type" data-color="Black">
                                 <div class="dice-icon black-die"></div>
@@ -93,8 +113,12 @@
                                     <button class="btn btn--sm dice-btn-minus">-</button>
                                     <span class="dice-count">0</span>
                                     <button class="btn btn--sm dice-btn-plus">+</button>
+                                    <button class="btn btn--sm btn--fix" data-color="Black" title="Fix dice to specific face">🔒</button>
                                 </div>
                                 <div class="dice-label">Black</div>
+                                <div class="fixed-dice-indicator" data-color="Black" style="display: none;">
+                                    <span class="fixed-count">0</span> fixed
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -453,6 +477,34 @@
                     <div class="dice-face-grid">
                         <div class="dice-face-grid"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fixed Dice Modal -->
+    <div id="fixed-dice-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Fix Dice</h2>
+                <button class="modal-close" id="fixed-dice-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">Select a die face to fix it to that result. Fixed dice will always show the selected face instead of rolling.</p>
+                
+                <div id="fixed-dice-face-selector" class="face-selector">
+                    <!-- Face selection grid will be populated dynamically -->
+                </div>
+
+                <div id="fixed-dice-list" class="fixed-dice-list">
+                    <h3>Currently Fixed Dice</h3>
+                    <div id="fixed-dice-items" class="fixed-dice-items">
+                        <p class="no-fixed-dice">No dice are currently fixed.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn--outline" id="fixed-dice-clear-all">Clear All</button>
+                <button class="btn btn--primary" id="fixed-dice-done">Done</button>
             </div>
         </div>
     </div>
