@@ -222,6 +222,24 @@ describe('Reroll Functionality', () => {
       
       expect(toReroll.length).toBe(2);
     });
+
+    it('only rerolls dice below expected value', () => {
+      // RED die with 2 hits (above expected), 1 hit (at/above expected), and hollow hit (below expected)
+      const dice: DieRoll[] = [
+        { color: 'RED', faceIndex: 0, symbols: { hits: 2, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 } }, // Great roll
+        { color: 'RED', faceIndex: 1, symbols: { hits: 1, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 } }, // Good roll
+        { color: 'RED', faceIndex: 3, symbols: { hits: 0, blocks: 0, specials: 0, hollowHits: 1, hollowBlocks: 0, hollowSpecials: 0 } }  // Bad (hollow doesn't count)
+      ];
+      
+      const weights = getWeightsForPriorityMode('hits', false);
+      const toReroll = selectDiceToReroll(dice, 10, weights, facesByColor); // Max of 10, but should only reroll underperformers
+      
+      // Should only reroll die 2 (hollow hit), NOT the ones with actual hits
+      expect(toReroll.length).toBe(1);
+      expect(toReroll).not.toContain(0); // First die should NOT be rerolled (2 hits)
+      expect(toReroll).not.toContain(1); // Second die should NOT be rerolled (1 hit)
+      expect(toReroll).toContain(2); // Third die SHOULD be rerolled (only hollow hit)
+    });
   });
 
   describe('simulateDiceRollWithRerolls', () => {
@@ -250,7 +268,8 @@ describe('Reroll Functionality', () => {
       
       // Should roll dice twice: initial roll + one reroll (because below expected)
       expect(rollCount).toBe(2);
-      expect(result.hits).toBeGreaterThanOrEqual(0);
+      expect(result.aggregate.hits).toBeGreaterThanOrEqual(0);
+      expect(result.stats.fullRerollsOccurred).toBe(1);
     });
 
     it('does not reroll when condition not met', () => {
@@ -277,7 +296,8 @@ describe('Reroll Functionality', () => {
       
       // Should roll once: initial only (no reroll because above expected)
       expect(rollCount).toBe(1);
-      expect(result.hits).toBeGreaterThanOrEqual(0);
+      expect(result.aggregate.hits).toBeGreaterThanOrEqual(0);
+      expect(result.stats.fullRerollsOccurred).toBe(0);
     });
 
     it('performs selective rerolls on worst dice', () => {
@@ -301,20 +321,20 @@ describe('Reroll Functionality', () => {
         rng
       );
       
-      expect(result.hits).toBeGreaterThanOrEqual(0);
+      expect(result.aggregate.hits).toBeGreaterThanOrEqual(0);
+      expect(result.stats.diceRerolledCount).toBeGreaterThan(0);
     });
 
-    it('applies both rerolls sequentially (TESTS THE BUG)', () => {
+    it('applies both rerolls sequentially', () => {
       const pool: Pool = { RED: 1 };
       let rollCount = 0;
       
       const rng = () => {
         rollCount++;
         // Roll 1: Bad (face 5 = no hits, triggers full reroll)
-        // Roll 2: Full reroll (face 1 = 1 hit, decent)
-        // Roll 3: BUG - new roll (face 0 = 2 hits)
-        // Roll 4: Selective reroll (face 0 = 2 hits)
-        const faceIndices = [5, 1, 0, 0];
+        // Roll 2: Full reroll (face 3 = hollow hit, still below expected, triggers selective reroll)
+        // Roll 3: Selective reroll (face 0 = 2 hits, good)
+        const faceIndices = [5, 3, 0];
         const faceIndex = faceIndices[rollCount - 1] || 0;
         return (faceIndex + 0.1) / 8;
       };
@@ -339,11 +359,109 @@ describe('Reroll Functionality', () => {
         rng
       );
       
-      // After fixing the bug: rollCount should be 3 (initial + full reroll + selective reroll)
-      // Roll 1: Initial (face 5 = no hits, below expected)
-      // Roll 2: Full reroll (face 1 = 1 hit)
+      // Should perform both types of rerolls:
+      // Roll 1: Initial (face 5 = special, below expected for hits)
+      // Roll 2: Full reroll (face 3 = hollow hit, still below expected)
       // Roll 3: Selective reroll (face 0 = 2 hits)
-      expect(rollCount).toBe(3); // Correct behavior: no extra roll
+      expect(rollCount).toBe(3);
+      expect(result.stats.fullRerollsOccurred).toBe(1);
+      expect(result.stats.diceRerolledCount).toBe(1);
+    });
+
+    it('rerolling increases average hits (Monte Carlo)', () => {
+      const pool: Pool = { RED: 3, YELLOW: 2 };
+      const iterations = 1000;
+      
+      // Without rerolls
+      let totalHitsWithoutReroll = 0;
+      for (let i = 0; i < iterations; i++) {
+        const result = simulateDiceRollWithRerolls(
+          pool,
+          facesByColor,
+          null,
+          null,
+          Math.random
+        );
+        totalHitsWithoutReroll += result.aggregate.hits;
+      }
+      const avgWithoutReroll = totalHitsWithoutReroll / iterations;
+      
+      // With selective dice reroll
+      let totalHitsWithReroll = 0;
+      const repeatDiceConfig: RepeatDiceConfig = {
+        enabled: true,
+        maxDiceToReroll: 2,
+        priorityMode: 'hits',
+        countHollowAsFilled: false
+      };
+      
+      for (let i = 0; i < iterations; i++) {
+        const result = simulateDiceRollWithRerolls(
+          pool,
+          facesByColor,
+          null,
+          repeatDiceConfig,
+          Math.random
+        );
+        totalHitsWithReroll += result.aggregate.hits;
+      }
+      const avgWithReroll = totalHitsWithReroll / iterations;
+      
+      console.log(`Without reroll: ${avgWithoutReroll.toFixed(3)} avg hits`);
+      console.log(`With reroll: ${avgWithReroll.toFixed(3)} avg hits`);
+      console.log(`Improvement: ${((avgWithReroll - avgWithoutReroll) / avgWithoutReroll * 100).toFixed(1)}%`);
+      
+      // Rerolling should improve average (with high confidence)
+      expect(avgWithReroll).toBeGreaterThan(avgWithoutReroll);
+      
+      // The improvement should be meaningful (at least 5%)
+      const improvement = (avgWithReroll - avgWithoutReroll) / avgWithoutReroll;
+      expect(improvement).toBeGreaterThan(0.05);
+    });
+
+    it('rerolling with full reroll also increases average hits', () => {
+      const pool: Pool = { RED: 2, YELLOW: 1 };
+      const iterations = 1000;
+      
+      // Without rerolls
+      let totalHitsWithoutReroll = 0;
+      for (let i = 0; i < iterations; i++) {
+        const result = simulateDiceRollWithRerolls(
+          pool,
+          facesByColor,
+          null,
+          null,
+          Math.random
+        );
+        totalHitsWithoutReroll += result.aggregate.hits;
+      }
+      const avgWithoutReroll = totalHitsWithoutReroll / iterations;
+      
+      // With full reroll (below expected)
+      let totalHitsWithReroll = 0;
+      const repeatRollConfig: RepeatRollConfig = {
+        enabled: true,
+        condition: { type: 'BelowExpected', symbol: 'hits' }
+      };
+      
+      for (let i = 0; i < iterations; i++) {
+        const result = simulateDiceRollWithRerolls(
+          pool,
+          facesByColor,
+          repeatRollConfig,
+          null,
+          Math.random
+        );
+        totalHitsWithReroll += result.aggregate.hits;
+      }
+      const avgWithReroll = totalHitsWithReroll / iterations;
+      
+      console.log(`Without full reroll: ${avgWithoutReroll.toFixed(3)} avg hits`);
+      console.log(`With full reroll: ${avgWithReroll.toFixed(3)} avg hits`);
+      console.log(`Improvement: ${((avgWithReroll - avgWithoutReroll) / avgWithoutReroll * 100).toFixed(1)}%`);
+      
+      // Rerolling below-expected results should improve average
+      expect(avgWithReroll).toBeGreaterThan(avgWithoutReroll);
     });
   });
 });

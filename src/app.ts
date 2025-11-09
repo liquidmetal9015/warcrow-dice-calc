@@ -347,7 +347,8 @@ class WarcrowCalculator {
             (config) => {
                 this.analysisRepeatRollConfig = config;
                 this.scheduleAnalysisRun();
-            }
+            },
+            'analysis'
         );
 
         // Initialize Repeat Dice UI
@@ -357,7 +358,8 @@ class WarcrowCalculator {
             (config) => {
                 this.analysisRepeatDiceConfig = config;
                 this.scheduleAnalysisRun();
-            }
+            },
+            'analysis'
         );
 
         // Initialize Attacker Reroll UI
@@ -367,7 +369,8 @@ class WarcrowCalculator {
             (config) => {
                 this.attackerRepeatRollConfig = config;
                 this.scheduleCombatRun();
-            }
+            },
+            'attacker'
         );
         initRepeatDiceUI(
             'attacker-repeat-dice-section',
@@ -375,7 +378,8 @@ class WarcrowCalculator {
             (config) => {
                 this.attackerRepeatDiceConfig = config;
                 this.scheduleCombatRun();
-            }
+            },
+            'attacker'
         );
 
         // Initialize Defender Reroll UI
@@ -385,7 +389,8 @@ class WarcrowCalculator {
             (config) => {
                 this.defenderRepeatRollConfig = config;
                 this.scheduleCombatRun();
-            }
+            },
+            'defender'
         );
         initRepeatDiceUI(
             'defender-repeat-dice-section',
@@ -393,7 +398,8 @@ class WarcrowCalculator {
             (config) => {
                 this.defenderRepeatDiceConfig = config;
                 this.scheduleCombatRun();
-            }
+            },
+            'defender'
         );
     }
 
@@ -647,6 +653,32 @@ class WarcrowCalculator {
                     <div class="stat-item"><span class="stat-label">Max</span><span class="stat-value">${minMax.specials.max}</span></div>
                 </div>
             </div>
+            ${results.rerollStats ? `
+            <div class="symbol-group reroll-stats">
+                <h3>Rerolls</h3>
+                <div class="symbol-stats">
+                    ${results.rerollStats.fullRerollsOccurred > 0 || results.rerollStats.diceRerolledCount > 0 ? `
+                        ${results.rerollStats.fullRerollsOccurred > 0 ? `
+                        <div class="stat-item">
+                            <span class="stat-label">Repeat Roll %</span>
+                            <span class="stat-value">${((results.rerollStats.fullRerollsOccurred / results.rerollStats.totalRolls) * 100).toFixed(1)}%</span>
+                        </div>
+                        ` : ''}
+                        ${results.rerollStats.diceRerolledCount > 0 ? `
+                        <div class="stat-item">
+                            <span class="stat-label">Avg Dice Repeated/Roll</span>
+                            <span class="stat-value">${(results.rerollStats.diceRerolledCount / results.rerollStats.totalRolls).toFixed(2)}</span>
+                        </div>
+                        ` : ''}
+                    ` : `
+                    <div class="stat-item">
+                        <span class="stat-label">No rerolls</span>
+                        <span class="stat-value">—</span>
+                    </div>
+                    `}
+                </div>
+            </div>
+            ` : ''}
         `;
         const ts = document.getElementById('results-timestamp');
         if (ts) ts.textContent = results.timestamp;

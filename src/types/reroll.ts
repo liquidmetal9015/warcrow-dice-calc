@@ -36,7 +36,14 @@ export type RerollValueWeights = {
 export type RepeatDiceConfig = {
   enabled: boolean;
   maxDiceToReroll: number;
-  priorityMode: 'hits' | 'blocks' | 'specials' | 'balanced';
+  priorityMode: 'hits' | 'blocks' | 'specials';
   countHollowAsFilled: boolean;
+};
+
+// Reroll Statistics
+export type RerollStats = {
+  fullRerollsOccurred: number;
+  diceRerolledCount: number;
+  totalRolls: number;
 };
 

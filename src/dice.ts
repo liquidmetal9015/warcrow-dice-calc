@@ -148,6 +148,7 @@ export interface MonteCarloResults {
   expected: AnalysisExpected;
   std: AnalysisStd;
   timestamp: string;
+  rerollStats?: RerollStats;
 }
 
 import { incJoint, normalizeDistribution, normalizeJoint } from './utils/distribution';
@@ -267,7 +268,8 @@ import type {
   DieRoll,
   RollResult,
   RerollValueWeights,
-  RepeatDiceConfig
+  RepeatDiceConfig,
+  RerollStats
 } from './types/reroll';
 
 /**
@@ -417,6 +419,7 @@ export function scoreDie(
 
 /**
  * Select worst-performing dice to reroll
+ * Only rerolls dice that are performing below their expected value
  */
 export function selectDiceToReroll(
   dice: DieRoll[],
@@ -431,60 +434,47 @@ export function selectDiceToReroll(
     score: scoreDie(die, weights, colorExpectations)
   }));
   
-  // Sort ascending (worst first)
-  scored.sort((a, b) => a.score - b.score);
+  // Only consider dice with negative scores (below expected)
+  const underperforming = scored.filter(s => s.score < 0);
   
-  // Return indices of worst N dice
-  return scored.slice(0, Math.min(maxRerolls, dice.length)).map(s => s.idx);
+  // Sort ascending (worst first)
+  underperforming.sort((a, b) => a.score - b.score);
+  
+  // Return indices of worst N underperforming dice
+  return underperforming.slice(0, Math.min(maxRerolls, underperforming.length)).map(s => s.idx);
 }
 
 /**
  * Get weights for priority mode
+ * Only the target symbol has weight - everything else is 0
  */
 export function getWeightsForPriorityMode(
-  mode: 'hits' | 'blocks' | 'specials' | 'balanced',
+  mode: 'hits' | 'blocks' | 'specials',
   countHollowAsFilled: boolean
 ): RerollValueWeights {
   const defaults = { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
   
-  // Hollow symbols are worth 0 unless elite promotion is active (countHollowAsFilled = true)
+  // Hollow symbols are worth 1 if elite promotion is active, 0 otherwise
   const hollowMultiplier = countHollowAsFilled ? 1 : 0;
   
   switch (mode) {
     case 'hits':
       return { 
         ...defaults, 
-        hits: 2, 
-        specials: 1, 
-        hollowHits: 2 * hollowMultiplier,
-        hollowSpecials: 1 * hollowMultiplier
+        hits: 1,
+        hollowHits: hollowMultiplier
       };
     case 'blocks':
       return { 
         ...defaults, 
-        blocks: 2, 
-        specials: 1, 
-        hollowBlocks: 2 * hollowMultiplier,
-        hollowSpecials: 1 * hollowMultiplier
+        blocks: 1,
+        hollowBlocks: hollowMultiplier
       };
     case 'specials':
       return {
         ...defaults,
-        specials: 2,
-        hits: 1,
-        blocks: 1,
-        hollowSpecials: 2 * hollowMultiplier,
-        hollowHits: 1 * hollowMultiplier,
-        hollowBlocks: 1 * hollowMultiplier
-      };
-    case 'balanced':
-      return { 
-        hits: 1.5, 
-        blocks: 1.5, 
-        specials: 1, 
-        hollowHits: 1.5 * hollowMultiplier, 
-        hollowBlocks: 1.5 * hollowMultiplier, 
-        hollowSpecials: 1 * hollowMultiplier
+        specials: 1,
+        hollowSpecials: hollowMultiplier
       };
     default:
       return defaults;
@@ -501,9 +491,11 @@ export function simulateDiceRollWithRerolls(
   repeatRollConfig: RepeatRollConfig | null,
   repeatDiceConfig: RepeatDiceConfig | null,
   rng: RNG = Math.random
-): Aggregate {
+): { aggregate: Aggregate; stats: RerollStats } {
   let agg: Aggregate;
   let dice: DieRoll[] | null = null;
+  let fullRerollsOccurred = 0;
+  let diceRerolledCount = 0;
   
   // Determine if we need detailed tracking from the start
   const needsDetailed = repeatDiceConfig?.enabled;
@@ -520,11 +512,14 @@ export function simulateDiceRollWithRerolls(
       result = simulateDiceRollDetailed(pool, facesByColor, rng);
       dice = result.dice;
       agg = result.aggregate;
+      fullRerollsOccurred = 1;
     }
     
     // Phase 3: Selective reroll (repeat dice)
     const weights = getWeightsForPriorityMode(repeatDiceConfig.priorityMode, repeatDiceConfig.countHollowAsFilled);
     const toReroll = selectDiceToReroll(dice, repeatDiceConfig.maxDiceToReroll, weights, facesByColor);
+    
+    diceRerolledCount = toReroll.length;
     
     for (const idx of toReroll) {
       const die = dice[idx];
@@ -555,13 +550,21 @@ export function simulateDiceRollWithRerolls(
     agg = simulateDiceRoll(pool, facesByColor, rng);
     if (shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
       agg = simulateDiceRoll(pool, facesByColor, rng); // reroll once
+      fullRerollsOccurred = 1;
     }
   } else {
     // No rerolls at all
     agg = simulateDiceRoll(pool, facesByColor, rng);
   }
   
-  return agg;
+  return {
+    aggregate: agg,
+    stats: {
+      fullRerollsOccurred,
+      diceRerolledCount,
+      totalRolls: 1
+    }
+  };
 }
 
 

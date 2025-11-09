@@ -1,6 +1,6 @@
 import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../dice';
 import { incJoint, normalizeDistribution, normalizeJoint } from '../utils/distribution';
-import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
+import type { RepeatRollConfig, RepeatDiceConfig, RerollStats } from '../types/reroll';
 import { simulateDiceRollWithRerolls } from '../dice';
 
 export type RollFn = (pool: Pool, facesByColor: FacesByColor, rng: RNG) => Aggregate;
@@ -24,18 +24,27 @@ export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCar
     jointHitsSpecialsFilled: {}, jointBlocksSpecialsFilled: {}, jointHitsSpecialsHollow: {}, jointBlocksSpecialsHollow: {}, jointHitsSpecialsTotal: {}, jointBlocksSpecialsTotal: {},
     expected: { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 },
     std: { hits: 0, blocks: 0, specials: 0 },
-    timestamp: new Date().toLocaleTimeString()
+    timestamp: new Date().toLocaleTimeString(),
+    rerollStats: { fullRerollsOccurred: 0, diceRerolledCount: 0, totalRolls: 0 }
   };
 
   // Use combined reroll function if either enabled
   const hasRerolls = repeatRollConfig?.enabled || repeatDiceConfig?.enabled;
-  const rollFn = hasRerolls
-    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, repeatRollConfig || null, repeatDiceConfig || null, r)
-    : roll;
 
   let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
   for (let i = 0; i < simulationCount; i++) {
-    const pre = rollFn(pool, facesByColor, rng);
+    let pre: Aggregate;
+    
+    if (hasRerolls) {
+      const result = simulateDiceRollWithRerolls(pool, facesByColor, repeatRollConfig || null, repeatDiceConfig || null, rng);
+      pre = result.aggregate;
+      results.rerollStats!.fullRerollsOccurred += result.stats.fullRerollsOccurred;
+      results.rerollStats!.diceRerolledCount += result.stats.diceRerolledCount;
+      results.rerollStats!.totalRolls += 1;
+    } else {
+      pre = roll(pool, facesByColor, rng);
+    }
+    
     const agg = transformAggregate ? transformAggregate(pre) : pre;
 
     results.hits[agg.hits] = (results.hits[agg.hits] || 0) + 1;
@@ -142,19 +151,26 @@ export async function runCombat(options: CombatRunOptions): Promise<CombatResult
   // Setup roll functions with rerolls
   const attackerHasRerolls = attackerRepeatRollConfig?.enabled || attackerRepeatDiceConfig?.enabled;
   const defenderHasRerolls = defenderRepeatRollConfig?.enabled || defenderRepeatDiceConfig?.enabled;
-  
-  const attackerRollFn = attackerHasRerolls
-    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, attackerRepeatRollConfig || null, attackerRepeatDiceConfig || null, r)
-    : roll;
-  
-  const defenderRollFn = defenderHasRerolls
-    ? (p: Pool, f: FacesByColor, r: RNG) => simulateDiceRollWithRerolls(p, f, defenderRepeatRollConfig || null, defenderRepeatDiceConfig || null, r)
-    : roll;
 
   let attackerWins = 0, attackerTies = 0, attackerLosses = 0;
   for (let i = 0; i < simulationCount; i++) {
-    const preA = attackerRollFn(attackerPool, facesByColor, rng);
-    const preD = defenderRollFn(defenderPool, facesByColor, rng);
+    let preA: Aggregate;
+    let preD: Aggregate;
+    
+    if (attackerHasRerolls) {
+      const result = simulateDiceRollWithRerolls(attackerPool, facesByColor, attackerRepeatRollConfig || null, attackerRepeatDiceConfig || null, rng);
+      preA = result.aggregate;
+    } else {
+      preA = roll(attackerPool, facesByColor, rng);
+    }
+    
+    if (defenderHasRerolls) {
+      const result = simulateDiceRollWithRerolls(defenderPool, facesByColor, defenderRepeatRollConfig || null, defenderRepeatDiceConfig || null, rng);
+      preD = result.aggregate;
+    } else {
+      preD = roll(defenderPool, facesByColor, rng);
+    }
+    
     const attacker = transforms?.attacker?.transformAggregate ? transforms.attacker.transformAggregate(preA) : preA;
     const defender = transforms?.defender?.transformAggregate ? transforms.defender.transformAggregate(preD) : preD;
 

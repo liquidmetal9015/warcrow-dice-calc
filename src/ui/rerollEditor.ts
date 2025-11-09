@@ -12,13 +12,15 @@ export interface RerollEditorCallbacks {
 export function initRepeatRollUI(
   containerId: string,
   initialConfig: RepeatRollConfig,
-  callback: (config: RepeatRollConfig) => void
+  callback: (config: RepeatRollConfig) => void,
+  namePrefix: string = ''
 ): void {
   const container = document.getElementById(containerId);
   if (!container) return;
 
   const enableCheckbox = container.querySelector('#enable-repeat-roll') as HTMLInputElement;
-  const conditionRadios = container.querySelectorAll('input[name="reroll-condition"]') as NodeListOf<HTMLInputElement>;
+  const radioName = namePrefix ? `${namePrefix}-reroll-condition` : 'reroll-condition';
+  const conditionRadios = container.querySelectorAll(`input[name="${radioName}"]`) as NodeListOf<HTMLInputElement>;
 
   if (!enableCheckbox || !conditionRadios.length) return;
 
@@ -80,14 +82,16 @@ export function initRepeatRollUI(
 export function initRepeatDiceUI(
   containerId: string,
   initialConfig: RepeatDiceConfig,
-  callback: (config: RepeatDiceConfig) => void
+  callback: (config: RepeatDiceConfig) => void,
+  namePrefix: string = ''
 ): void {
   const container = document.getElementById(containerId);
   if (!container) return;
 
   const enableCheckbox = container.querySelector('#enable-repeat-dice') as HTMLInputElement;
   const maxDiceInput = container.querySelector('#max-dice-reroll') as HTMLInputElement;
-  const priorityRadios = container.querySelectorAll('input[name="priority-mode"]') as NodeListOf<HTMLInputElement>;
+  const radioName = namePrefix ? `${namePrefix}-priority-mode` : 'priority-mode';
+  const priorityRadios = container.querySelectorAll(`input[name="${radioName}"]`) as NodeListOf<HTMLInputElement>;
   const hollowCheckbox = container.querySelector('#count-hollow-as-filled') as HTMLInputElement;
 
   if (!enableCheckbox || !maxDiceInput) return;

@@ -24,7 +24,7 @@ export function renderDieCard(
     dieRoll: { color: string; faceIndex: number; symbols: Aggregate },
     score: number,
     rerollPriority: number | null,
-    priorityMode: 'hits' | 'blocks' | 'specials' | 'balanced',
+    priorityMode: 'hits' | 'blocks' | 'specials',
     countHollowAsFilled: boolean,
     onChange: (faceIndex: number) => void,
     onReroll: () => void
@@ -278,7 +278,7 @@ function getOrdinalSuffix(n: number): string {
 function getExpectedAndCurrentForPriority(
     faces: ReadonlyArray<ReadonlyArray<string>>,
     currentSymbols: Aggregate,
-    priorityMode: 'hits' | 'blocks' | 'specials' | 'balanced',
+    priorityMode: 'hits' | 'blocks' | 'specials',
     countHollowAsFilled: boolean
 ): { expectedCount: number; currentCount: number; symbolLabel: string } {
     // Determine which symbol(s) to count based on priority mode
@@ -298,11 +298,6 @@ function getExpectedAndCurrentForPriority(
             symbolLabel = 'Specials';
             currentCount = currentSymbols.specials + (countHollowAsFilled ? currentSymbols.hollowSpecials : 0);
             break;
-        case 'balanced':
-            symbolLabel = 'Value';
-            currentCount = currentSymbols.hits + currentSymbols.blocks + currentSymbols.specials + 
-                          (countHollowAsFilled ? (currentSymbols.hollowHits + currentSymbols.hollowBlocks + currentSymbols.hollowSpecials) : 0);
-            break;
     }
     
     // Calculate expected count for this die
@@ -320,10 +315,6 @@ function getExpectedAndCurrentForPriority(
                 break;
             case 'specials':
                 faceValue = symbols.specials + (countHollowAsFilled ? symbols.hollowSpecials : 0);
-                break;
-            case 'balanced':
-                faceValue = symbols.hits + symbols.blocks + symbols.specials + 
-                           (countHollowAsFilled ? (symbols.hollowHits + symbols.hollowBlocks + symbols.hollowSpecials) : 0);
                 break;
         }
         
