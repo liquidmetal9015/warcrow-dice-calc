@@ -4,7 +4,7 @@ import {
   type FacesByColor,
   type Pool,
   simulateDiceRollWithRerollsAndStates
-} from '../src/dice';
+} from '../src/domain/dice';
 
 const faces: FacesByColor = {
   RED: [
@@ -55,4 +55,3 @@ describe('combat states - Disarmed & Vulnerable', () => {
     expect(res.aggregate.blocks).toBe(0);
   });
 });
-

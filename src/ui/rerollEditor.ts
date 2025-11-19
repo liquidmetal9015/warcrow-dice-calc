@@ -1,5 +1,5 @@
 import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
-import type { Aggregate } from '../dice';
+import type { Aggregate } from '../domain/dice';
 
 export interface RerollEditorCallbacks {
   onRepeatRollChanged: (config: RepeatRollConfig) => void;

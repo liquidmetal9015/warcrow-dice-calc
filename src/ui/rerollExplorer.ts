@@ -1,4 +1,4 @@
-import type { FacesByColor, Aggregate, Pool } from '../dice';
+import type { FacesByColor, Aggregate, Pool } from '../domain/dice';
 import { 
     computePoolExpectedValue, 
     shouldRerollAggregate,
@@ -8,7 +8,7 @@ import {
     getWeightsForPriorityMode,
     countSymbolsFromFace,
     normalizeColor
-} from '../dice';
+} from '../domain/dice';
 import type { RepeatRollConfig, RepeatDiceConfig, DieRoll } from '../types/reroll';
 
 export type ExplorerDieState = {

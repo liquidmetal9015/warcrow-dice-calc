@@ -4,7 +4,7 @@
  */
 import { TabController } from '../base/TabController';
 import type { SharedServices } from '../../core/types';
-import { isAttackColor } from '../../dice';
+import { isAttackColor } from '../../domain/dice';
 
 export class FacesTab extends TabController {
   protected async onInitialize(): Promise<void> {

@@ -1,4 +1,4 @@
-import type { Aggregate } from '../dice';
+import type { Aggregate } from '../domain/dice';
 
 // Repeat Roll (Full Reroll) Types
 export type RerollCondition = {

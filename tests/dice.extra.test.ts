@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   DS,
   simulateDiceRoll,
-  performMonteCarloSimulation,
-  performMonteCarloSimulationWithPipeline,
   blankAggregate,
   normalizeColor,
   computeDieStats,
   type FacesByColor,
-} from '../src/dice';
+  type Aggregate
+} from '../src/domain/dice';
+import { runAnalysis } from '../src/services/simulation';
 import { Pipeline, AddSymbolsStep, ElitePromotionStep, SwitchSymbolsStep } from '../src/pipeline';
 import { makeDeterministicRng, makeLinearRng } from './utils';
 
@@ -20,6 +20,14 @@ const facesByColorStub: FacesByColor = {
   BLUE: [ [DS.BLOCK], [DS.SPECIAL], [DS.BLOCK], [DS.SPECIAL], [DS.BLOCK], [DS.SPECIAL], [DS.HOLLOW_BLOCK], [DS.BLOCK] ],
   BLACK: [ [DS.SPECIAL], [DS.SPECIAL], [DS.HOLLOW_SPECIAL], [DS.SPECIAL], [DS.SPECIAL], [DS.SPECIAL], [DS.HOLLOW_SPECIAL], [DS.SPECIAL] ],
 };
+
+function adapt(pipeline: Pipeline) {
+  return (agg: Aggregate) => {
+    const state = { dice: [], rollDetails: [], aggregate: { ...agg } };
+    pipeline.applyPost(state);
+    return state.aggregate;
+  };
+}
 
 describe('dice: simulate and stats', () => {
   it('simulateDiceRoll aggregates symbols deterministically', () => {
@@ -39,7 +47,13 @@ describe('dice: simulate and stats', () => {
 describe('monte carlo: normalization & expected/std sanity', () => {
   it('performMonteCarloSimulation produces distributions summing ~100%', async () => {
     const rng = makeLinearRng(0.05, 0.173);
-    const res = await performMonteCarloSimulation({ Red: 1, Blue: 1 }, facesByColorStub, 2000, rng);
+    const res = await runAnalysis({
+      pool: { Red: 1, Blue: 1 },
+      facesByColor: facesByColorStub,
+      simulationCount: 2000,
+      rng,
+      roll: simulateDiceRoll
+    });
     const sum = Object.values(res.hits).reduce((a, b) => a + b, 0);
     expect(Math.abs(sum - 100)).toBeLessThanOrEqual(0.5);
     // std should be non-negative
@@ -53,11 +67,16 @@ describe('monte carlo: normalization & expected/std sanity', () => {
       new ElitePromotionStep('e1', true, ['hollowHits'], null),
       new SwitchSymbolsStep('s1', true, 'hits', 'specials', { x: 2, y: 1 }, null)
     ]);
-    const res = await performMonteCarloSimulationWithPipeline({ Red: 2 }, facesByColorStub, 1500, p, rng);
+    const res = await runAnalysis({
+      pool: { Red: 2 },
+      facesByColor: facesByColorStub,
+      simulationCount: 1500,
+      rng,
+      roll: simulateDiceRoll,
+      transformAggregate: adapt(p)
+    });
     // Totals should still sum ~100
     const sumHits = Object.values(res.hits).reduce((a, b) => a + b, 0);
     expect(Math.abs(sumHits - 100)).toBeLessThanOrEqual(0.6);
   });
 });
-
-

@@ -1,4 +1,4 @@
-import type { Aggregate } from './dice';
+import type { Aggregate } from './domain/dice';
 
 export function blankCounts(): Aggregate {
   return { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };

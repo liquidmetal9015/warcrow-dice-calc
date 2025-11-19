@@ -11,8 +11,8 @@ import {
   selectDiceToReroll,
   scoreDie,
   countSymbolsFromFace
-} from '../../dice';
-import type { Aggregate, Pool } from '../../dice';
+} from '../../domain/dice';
+import type { Aggregate, Pool } from '../../domain/dice';
 import type { RepeatRollConfig, DieRoll } from '../../types/reroll';
 
 export class ExplorerUI {

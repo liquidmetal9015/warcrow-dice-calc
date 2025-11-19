@@ -1,7 +1,7 @@
 /**
  * SymbolSummary - Renders the symbol summary statistics
  */
-import type { MonteCarloResults } from '../../../dice';
+import type { MonteCarloResults } from '../../../domain/dice';
 import type { IconService } from '../../../services/IconService';
 
 export class SymbolSummary {

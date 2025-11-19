@@ -1,10 +1,21 @@
-import type { FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Aggregate } from '../dice';
-import { performMonteCarloSimulationWithPipeline, performCombatSimulationWithPipeline } from '../dice';
+import type { FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Aggregate } from '../domain/dice';
+import { runAnalysis, runCombat } from '../services/simulation';
+import { simulateDiceRoll } from '../domain/dice';
 import type { Pipeline } from '../pipeline';
 import { serializePipeline } from '../pipelineSerialization';
 import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';
 
 type WorkerRequest = { resolve: (v: any) => void; reject: (e: any) => void };
+
+// Helper to adapt Pipeline.applyPost to transformAggregate
+function applyPipelineAdapter(pipeline: Pipeline) {
+  return (agg: Aggregate) => {
+    if (!pipeline || typeof pipeline.applyPost !== 'function') return agg;
+    const state = { dice: [], rollDetails: [], aggregate: { ...agg } };
+    pipeline.applyPost(state);
+    return state.aggregate;
+  };
+}
 
 export class SimulationController {
   private worker: Worker | null;
@@ -69,17 +80,18 @@ export class SimulationController {
         vulnerable
       });
     }
-    return await performMonteCarloSimulationWithPipeline(
+    return await runAnalysis({
       pool,
       facesByColor,
       simulationCount,
-      pipeline,
       rng,
-      repeatRollConfig,
-      repeatDiceConfig,
+      roll: simulateDiceRoll,
+      transformAggregate: applyPipelineAdapter(pipeline),
+      repeatRollConfig: repeatRollConfig || null,
+      repeatDiceConfig: repeatDiceConfig || null,
       disarmed,
       vulnerable
-    );
+    });
   }
 
   async runCombatWithPipeline(
@@ -116,22 +128,33 @@ export class SimulationController {
         defenderVulnerable
       });
     }
-    return await performCombatSimulationWithPipeline(
-      attackerPool, 
-      defenderPool, 
-      facesByColor, 
-      simulationCount, 
-      attackerPipeline, 
-      defenderPipeline, 
-      attackerRepeatRollConfig || null,
-      attackerRepeatDiceConfig || null,
-      defenderRepeatRollConfig || null,
-      defenderRepeatDiceConfig || null,
+    return await runCombat({
+      attackerPool,
+      defenderPool,
+      facesByColor,
+      simulationCount,
       rng,
+      roll: simulateDiceRoll,
+      transforms: {
+        attacker: {
+          transformAggregate: applyPipelineAdapter(attackerPipeline),
+          applyCombat: attackerPipeline && typeof attackerPipeline.applyCombat === 'function'
+            ? (self, opp) => attackerPipeline.applyCombat!(self, opp, 'attacker')
+            : undefined
+        },
+        defender: {
+          transformAggregate: applyPipelineAdapter(defenderPipeline),
+          applyCombat: defenderPipeline && typeof defenderPipeline.applyCombat === 'function'
+            ? (self, opp) => defenderPipeline.applyCombat!(self, opp, 'defender')
+            : undefined
+        }
+      },
+      attackerRepeatRollConfig: attackerRepeatRollConfig || null,
+      attackerRepeatDiceConfig: attackerRepeatDiceConfig || null,
+      defenderRepeatRollConfig: defenderRepeatRollConfig || null,
+      defenderRepeatDiceConfig: defenderRepeatDiceConfig || null,
       attackerDisarmed,
       defenderVulnerable
-    );
+    });
   }
 }
-
-

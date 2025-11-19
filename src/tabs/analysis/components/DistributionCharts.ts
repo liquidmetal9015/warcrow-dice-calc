@@ -1,7 +1,7 @@
 /**
  * DistributionCharts - Renders distribution charts for hits, blocks, and specials
  */
-import type { MonteCarloResults, Distribution } from '../../../dice';
+import type { MonteCarloResults, Distribution } from '../../../domain/dice';
 import type { ChartService } from '../../../services/ChartService';
 
 export type ChartMode = 'filled' | 'hollow' | 'both';

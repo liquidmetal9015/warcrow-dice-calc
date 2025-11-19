@@ -1,7 +1,7 @@
-import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../dice';
+import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../domain/dice';
 import { incJoint, normalizeDistribution, normalizeJoint } from '../utils/distribution';
 import type { RepeatRollConfig, RepeatDiceConfig, RerollStats } from '../types/reroll';
-import { simulateDiceRollWithRerolls, simulateDiceRollWithRerollsAndStates } from '../dice';
+import { simulateDiceRollWithRerolls, simulateDiceRollWithRerollsAndStates } from '../domain/dice';
 
 export type RollFn = (pool: Pool, facesByColor: FacesByColor, rng: RNG) => Aggregate;
 

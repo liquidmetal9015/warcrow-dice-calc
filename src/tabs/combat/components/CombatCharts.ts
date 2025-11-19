@@ -1,7 +1,7 @@
 /**
  * CombatCharts - Renders combat-specific charts (wounds and specials)
  */
-import type { CombatResults, Distribution } from '../../../dice';
+import type { CombatResults, Distribution } from '../../../domain/dice';
 import type { ChartService } from '../../../services/ChartService';
 
 export class CombatCharts {

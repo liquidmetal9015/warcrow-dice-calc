@@ -8,7 +8,7 @@ import { iconService } from '../services/IconService';
 import { storageService } from '../services/StorageService';
 import { ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep } from '../pipeline';
 import type { SerializedPipelineStep } from '../pipeline';
-import type { Aggregate } from '../dice';
+import type { Aggregate } from '../domain/dice';
 
 export type PipelineScope = 'analysis' | 'attacker' | 'defender';
 

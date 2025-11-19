@@ -2,7 +2,7 @@
  * DiceData - Centralized dice faces data loading and management
  * Single source of truth for dice face definitions
  */
-import type { FacesByColor, SymbolKey } from '../dice';
+import type { FacesByColor, SymbolKey } from '../domain/dice';
 
 export class DiceData {
   private facesByColor: FacesByColor | null = null;

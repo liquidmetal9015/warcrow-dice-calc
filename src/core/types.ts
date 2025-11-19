@@ -1,7 +1,7 @@
 /**
  * Core types shared across the application
  */
-import type { FacesByColor } from '../dice';
+import type { FacesByColor } from '../domain/dice';
 import type { StorageService } from '../services/StorageService';
 import type { ChartService } from '../services/ChartService';
 import type { IconService } from '../services/IconService';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Pipeline, AddSymbolsStep, ElitePromotionStep, SwitchSymbolsStep, CombatSwitchStep } from '../src/pipeline';
-import type { Aggregate } from '../src/dice';
+import type { Aggregate } from '../src/domain/dice';
 
 function agg(values: Partial<Aggregate>): Aggregate {
   return Object.assign({ hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 }, values);
@@ -53,5 +53,3 @@ describe('pipeline steps: edge cases', () => {
     expect(opp.blocks).toBe(1);
   });
 });
-
-

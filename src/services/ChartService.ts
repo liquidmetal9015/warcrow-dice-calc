@@ -170,6 +170,7 @@ export class ChartService {
 
     const layout = {
       autosize: true,
+      height: Math.max(200, height * 40 + 80),
       margin: { l: 44, r: 12, t: 8, b: 44 },
       xaxis: {
         title: { text: xLabel, font: { color: textColor } },

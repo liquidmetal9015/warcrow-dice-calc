@@ -82,25 +82,45 @@ export class AnalysisUI {
    * Render charts based on current mode selections
    */
   renderCharts(): void {
-    const state = this.getChartModes();
+    // Get last results from state is tricky here because we don't hold state.
+    // Ideally renderCharts should be passed results.
+    // But render() calls showResults() which calls renderCharts().
+    // And render() receives state.
+    // So we should pass results to renderCharts.
+    // However, renderCharts is also called by event handlers which don't have results.
+    // Refactoring point: The Controller should handle chart updates, calling a method on UI with results.
     
-    // Get last results from state (we need access to this)
-    const summaryEl = this.container.querySelector('#symbol-summary') as HTMLElement;
-    const resultsContainer = summaryEl.closest('.results-section');
-    if (!resultsContainer) return;
-
-    // For now, we'll trigger chart rendering via a custom event
-    // The AnalysisTab will listen for this and call the appropriate methods
+    // For now, we dispatch an event if we need data we don't have, or we rely on the fact that
+    // render() passes results to showResults, which sets them on components? 
+    // No, components need results passed to render().
+    
+    // We'll dispatch the event for legacy support if needed, but prefer explicit calls.
     this.container.dispatchEvent(new CustomEvent('renderCharts', {
-      detail: state,
+      detail: this.getChartModes(),
       bubbles: true
     }));
   }
 
   /**
+   * Explicitly render charts with data (called by Controller)
+   */
+  public updateCharts(results: any): void {
+    const modes = this.getChartModes();
+    this.renderDistributionCharts(results, {
+      hits: modes.hits,
+      blocks: modes.blocks,
+      specials: modes.specials
+    });
+    this.renderBivariateCharts(results, {
+      hitsSpecials: modes.hitsSpecials,
+      blocksSpecials: modes.blocksSpecials
+    });
+  }
+
+  /**
    * Get current chart mode selections from UI
    */
-  private getChartModes(): {
+  public getChartModes(): {
     hits: ChartMode;
     blocks: ChartMode;
     specials: ChartMode;
@@ -163,5 +183,82 @@ export class AnalysisUI {
   }): void {
     this.bivariateCharts.render(results, modes);
   }
-}
 
+  // ==========================================================================
+  // Event Binding
+  // ==========================================================================
+
+  public bindDiceAdjust(handler: (type: string, isPlus: boolean) => void): void {
+    this.container.querySelectorAll('.dice-btn-plus, .dice-btn-minus').forEach(btn => {
+      // Cloning to remove old listeners if any? No, just adding new ones. Controller handles lifecycle.
+      btn.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          const parent = target.closest('.dice-type');
+          if (!parent) return;
+          const label = (parent.querySelector('.dice-label') as HTMLElement)?.textContent?.trim();
+          if (!label) return;
+          const isPlus = target.classList.contains('dice-btn-plus');
+          handler(label, isPlus);
+      });
+    });
+  }
+
+  public bindReset(handler: () => void): void {
+      const resetBtn = this.container.querySelector('#reset-pool');
+      resetBtn?.addEventListener('click', handler);
+  }
+
+  public bindStateChange(handler: (type: 'disarmed' | 'vulnerable', value: boolean) => void): void {
+      const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
+      if (disarmedEl) {
+          disarmedEl.addEventListener('change', () => handler('disarmed', disarmedEl.checked));
+      }
+      const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
+      if (vulnerableEl) {
+          vulnerableEl.addEventListener('change', () => handler('vulnerable', vulnerableEl.checked));
+      }
+  }
+
+  public bindChartModeChange(handler: () => void): void {
+      const selectors = [
+          'analysis-mode-hits', 'analysis-mode-blocks', 'analysis-mode-specials',
+          'analysis-mode-hs', 'analysis-mode-bs'
+      ];
+      selectors.forEach(name => {
+          this.container.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
+              radio.addEventListener('change', handler);
+          });
+      });
+  }
+
+  public updateDiceCount(type: string, count: number): void {
+      const types = this.container.querySelectorAll('.dice-type');
+      types.forEach(el => {
+          const label = el.querySelector('.dice-label')?.textContent?.trim();
+          if (label === type) {
+              const countEl = el.querySelector('.dice-count');
+              if (countEl) countEl.textContent = String(count);
+          }
+      });
+  }
+
+  public resetUI(): void {
+      this.container.querySelectorAll('.dice-type .dice-count').forEach(el => el.textContent = '0');
+      
+      const enableRepeatRoll = this.container.querySelector('#enable-repeat-roll') as HTMLInputElement;
+      const enableRepeatDice = this.container.querySelector('#enable-repeat-dice') as HTMLInputElement;
+      if (enableRepeatRoll) {
+          enableRepeatRoll.checked = false;
+          enableRepeatRoll.dispatchEvent(new Event('change'));
+      }
+      if (enableRepeatDice) {
+          enableRepeatDice.checked = false;
+          enableRepeatDice.dispatchEvent(new Event('change'));
+      }
+
+      const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
+      if (disarmedEl) disarmedEl.checked = false;
+      const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
+      if (vulnerableEl) vulnerableEl.checked = false;
+  }
+}

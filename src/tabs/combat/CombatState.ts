@@ -6,7 +6,7 @@ import { TabState } from '../base/TabState';
 import { Pipeline } from '../../pipeline';
 import type { DicePool } from '../../core/types';
 import type { RepeatRollConfig, RepeatDiceConfig } from '../../types/reroll';
-import type { CombatResults } from '../../dice';
+import type { CombatResults } from '../../domain/dice';
 import { getDefaultRepeatRollConfig, getDefaultRepeatDiceConfig } from '../../ui/rerollEditor';
 
 export interface CombatStateData {

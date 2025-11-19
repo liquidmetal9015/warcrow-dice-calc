@@ -1,4 +1,4 @@
-import type { Distribution, JointDistribution } from '../dice';
+import type { Distribution, JointDistribution } from '../domain/dice';
 
 export function incJoint(map: JointDistribution, x: number, y: number): void {
   if (!map[x]) map[x] = {} as Record<number, number>;

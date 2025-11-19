@@ -1,7 +1,7 @@
 /**
  * CombatSummary - Renders combat summary statistics
  */
-import type { CombatResults } from '../../../dice';
+import type { CombatResults } from '../../../domain/dice';
 import type { IconService } from '../../../services/IconService';
 
 export class CombatSummary {

@@ -1,7 +1,7 @@
 /**
  * BivariateCharts - Renders 2D heatmap charts for joint distributions
  */
-import type { MonteCarloResults, JointDistribution } from '../../../dice';
+import type { MonteCarloResults, JointDistribution } from '../../../domain/dice';
 import type { ChartService } from '../../../services/ChartService';
 import type { ChartMode } from './DistributionCharts';
 

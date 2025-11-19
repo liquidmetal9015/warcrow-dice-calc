@@ -1,5 +1,5 @@
 import { Pipeline, type PipelineStep, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep, type SerializedPipelineStep } from './pipeline';
-import type { Aggregate } from './dice';
+import type { Aggregate } from './domain/dice';
 
 export function serializePipeline(pipeline: Pipeline): SerializedPipelineStep[] {
   return (pipeline.steps || []).map((s) => ({

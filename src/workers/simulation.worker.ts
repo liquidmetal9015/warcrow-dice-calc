@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { runAnalysis, runCombat } from '../services/simulation';
-import { simulateDiceRoll, type FacesByColor, type Pool, type RNG, type Aggregate } from '../dice';
+import { simulateDiceRoll, type FacesByColor, type Pool, type RNG, type Aggregate } from '../domain/dice';
 import type { SerializedPipelineStep } from '../pipeline';
 import { buildPipelineFromSerialized } from '../pipelineSerialization';
 import type { RepeatRollConfig, RepeatDiceConfig } from '../types/reroll';

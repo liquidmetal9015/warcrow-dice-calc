@@ -75,73 +75,27 @@ export class AnalysisTab extends TabController {
    * Bind UI event handlers
    */
   private bindEvents(): void {
-    // Dice selector events
-    this.container.querySelectorAll('.dice-btn-plus, .dice-btn-minus').forEach(btn => {
-      btn.addEventListener('click', (e) => this.handleDiceAdjust(e.target as HTMLElement));
-    });
-
-    // Reset button
-    const resetBtn = this.container.querySelector('#reset-pool');
-    resetBtn?.addEventListener('click', () => this.handleReset());
-
-    // State flags
-    const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
-    if (disarmedEl) {
-      disarmedEl.addEventListener('change', () => {
-        this.state.setDisarmed(disarmedEl.checked);
+    this.ui.bindDiceAdjust((type, isPlus) => {
+        const currentCount = this.state.getPool()[type as keyof DicePool] || 0;
+        const newCount = Math.max(0, currentCount + (isPlus ? 1 : -1));
+        this.state.setDiceCount(type as keyof DicePool, newCount);
+        // We can let the state subscription update the UI, or do optimistic update.
+        // The original code updated UI textContent manually for responsiveness.
+        this.ui.updateDiceCount(type, newCount);
         this.scheduleSimulation();
-      });
-    }
+    });
 
-    const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
-    if (vulnerableEl) {
-      vulnerableEl.addEventListener('change', () => {
-        this.state.setVulnerable(vulnerableEl.checked);
+    this.ui.bindReset(() => this.handleReset());
+
+    this.ui.bindStateChange((type, value) => {
+        if (type === 'disarmed') this.state.setDisarmed(value);
+        if (type === 'vulnerable') this.state.setVulnerable(value);
         this.scheduleSimulation();
-      });
-    }
-
-    // Chart mode changes
-    ['analysis-mode-hits', 'analysis-mode-blocks', 'analysis-mode-specials'].forEach(name => {
-      this.container.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
-        radio.addEventListener('change', () => this.handleChartModeChange());
-      });
     });
 
-    ['analysis-mode-hs', 'analysis-mode-bs'].forEach(name => {
-      this.container.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
-        radio.addEventListener('change', () => this.handleChartModeChange());
-      });
+    this.ui.bindChartModeChange(() => {
+        this.renderChartsWithCurrentResults();
     });
-
-    // Listen for chart render requests from UI
-    this.container.addEventListener('renderCharts', () => {
-      this.renderChartsWithCurrentResults();
-    });
-  }
-
-  /**
-   * Handle dice count adjustment
-   */
-  private handleDiceAdjust(button: HTMLElement): void {
-    const parent = button.closest('.dice-type');
-    if (!parent) return;
-
-    const label = (parent.querySelector('.dice-label') as HTMLElement)?.textContent?.trim();
-    if (!label) return;
-
-    const isPlus = button.classList.contains('dice-btn-plus');
-    const currentCount = parseInt((parent.querySelector('.dice-count') as HTMLElement)?.textContent || '0', 10);
-    const newCount = Math.max(0, currentCount + (isPlus ? 1 : -1));
-
-    this.state.setDiceCount(label as keyof DicePool, newCount);
-    
-    // Update UI immediately
-    const countEl = parent.querySelector('.dice-count') as HTMLElement;
-    if (countEl) countEl.textContent = String(newCount);
-
-    // Schedule simulation
-    this.scheduleSimulation();
   }
 
   /**
@@ -149,37 +103,7 @@ export class AnalysisTab extends TabController {
    */
   private handleReset(): void {
     this.state.resetPool();
-    
-    // Update UI counts
-    this.container.querySelectorAll('.dice-type').forEach(el => {
-      const countEl = el.querySelector('.dice-count') as HTMLElement;
-      if (countEl) countEl.textContent = '0';
-    });
-
-    // Reset reroll UI (if present)
-    const enableRepeatRoll = this.container.querySelector('#enable-repeat-roll') as HTMLInputElement;
-    const enableRepeatDice = this.container.querySelector('#enable-repeat-dice') as HTMLInputElement;
-    if (enableRepeatRoll) {
-      enableRepeatRoll.checked = false;
-      enableRepeatRoll.dispatchEvent(new Event('change'));
-    }
-    if (enableRepeatDice) {
-      enableRepeatDice.checked = false;
-      enableRepeatDice.dispatchEvent(new Event('change'));
-    }
-
-    // Reset state flags
-    const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
-    if (disarmedEl) disarmedEl.checked = false;
-    const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
-    if (vulnerableEl) vulnerableEl.checked = false;
-  }
-
-  /**
-   * Handle chart mode changes
-   */
-  private handleChartModeChange(): void {
-    this.renderChartsWithCurrentResults();
+    this.ui.resetUI();
   }
 
   /**
@@ -248,46 +172,7 @@ export class AnalysisTab extends TabController {
   private renderChartsWithCurrentResults(): void {
     const results = this.state.getResults();
     if (!results) return;
-
-    const modes = this.getChartModes();
-
-    this.ui.renderDistributionCharts(results, {
-      hits: modes.hits,
-      blocks: modes.blocks,
-      specials: modes.specials
-    });
-
-    this.ui.renderBivariateCharts(results, {
-      hitsSpecials: modes.hitsSpecials,
-      blocksSpecials: modes.blocksSpecials
-    });
-  }
-
-  /**
-   * Get current chart modes from UI
-   */
-  private getChartModes(): {
-    hits: 'filled' | 'hollow' | 'both';
-    blocks: 'filled' | 'hollow' | 'both';
-    specials: 'filled' | 'hollow' | 'both';
-    hitsSpecials: 'filled' | 'hollow' | 'both';
-    blocksSpecials: 'filled' | 'hollow' | 'both';
-  } {
-    return {
-      hits: this.getRadioValue('analysis-mode-hits', 'filled'),
-      blocks: this.getRadioValue('analysis-mode-blocks', 'filled'),
-      specials: this.getRadioValue('analysis-mode-specials', 'filled'),
-      hitsSpecials: this.getRadioValue('analysis-mode-hs', 'filled'),
-      blocksSpecials: this.getRadioValue('analysis-mode-bs', 'filled')
-    };
-  }
-
-  /**
-   * Get radio button value
-   */
-  private getRadioValue(name: string, defaultValue: string): 'filled' | 'hollow' | 'both' {
-    const radio = this.container.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement;
-    return (radio?.value || defaultValue) as 'filled' | 'hollow' | 'both';
+    this.ui.updateCharts(results);
   }
 
   /**
@@ -308,4 +193,3 @@ export class AnalysisTab extends TabController {
     this.scheduleSimulation();
   }
 }
-

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DS, countSymbolsFromFace, simulateDiceRoll, type FacesByColor } from '../src/dice';
+import { DS, countSymbolsFromFace, simulateDiceRoll, type FacesByColor } from '../src/domain/dice';
 
 const fixedRng = () => 0.0; // always pick index 0
 
@@ -25,5 +25,3 @@ describe('simulateDiceRoll', () => {
     expect(agg.specials).toBe(0);
   });
 });
-
-

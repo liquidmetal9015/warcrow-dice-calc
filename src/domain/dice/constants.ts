@@ -1,0 +1,9 @@
+export const DS = Object.freeze({
+  HIT: 'HIT',
+  HOLLOW_HIT: 'HOLLOW_HIT',
+  BLOCK: 'BLOCK',
+  HOLLOW_BLOCK: 'HOLLOW_BLOCK',
+  SPECIAL: 'SPECIAL',
+  HOLLOW_SPECIAL: 'HOLLOW_SPECIAL'
+} as const);
+

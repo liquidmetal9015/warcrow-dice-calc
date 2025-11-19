@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runAnalysis, runCombat } from '../src/services/simulation';
-import { simulateDiceRoll } from '../src/dice';
-import type { FacesByColor, Pool, RNG, Aggregate } from '../src/dice';
+import { simulateDiceRoll } from '../src/domain/dice';
+import type { FacesByColor, Pool, RNG, Aggregate } from '../src/domain/dice';
 
 const faces: FacesByColor = {
   RED: [["HIT"],["HIT"],["HIT"],["HIT"],["HIT","HIT"],["HIT","HIT"],["SPECIAL","HOLLOW_HIT"],["SPECIAL","HIT"]] as any,

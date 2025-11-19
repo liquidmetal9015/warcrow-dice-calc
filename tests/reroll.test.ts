@@ -9,8 +9,8 @@ import {
   getWeightsForPriorityMode,
   simulateDiceRollDetailed,
   DS
-} from '../src/dice';
-import type { Pool, FacesByColor, Aggregate } from '../src/dice';
+} from '../src/domain/dice';
+import type { Pool, FacesByColor, Aggregate } from '../src/domain/dice';
 import type { RepeatRollConfig, RepeatDiceConfig, DieRoll } from '../src/types/reroll';
 import { makeLinearRng } from './utils';
 
@@ -465,4 +465,3 @@ describe('Reroll Functionality', () => {
     });
   });
 });
-

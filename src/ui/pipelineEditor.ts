@@ -1,5 +1,5 @@
 import { Pipeline, type PipelineStep, ElitePromotionStep, AddSymbolsStep, SwitchSymbolsStep, CombatSwitchStep } from '../pipeline';
-import type { Aggregate } from '../dice';
+import type { Aggregate } from '../domain/dice';
 
 function friendlyStepTitle(type: string): string {
   switch (type) {
