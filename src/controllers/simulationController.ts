@@ -51,6 +51,8 @@ export class SimulationController {
     pipeline: Pipeline,
     repeatRollConfig?: RepeatRollConfig | null,
     repeatDiceConfig?: RepeatDiceConfig | null,
+    disarmed: boolean = false,
+    vulnerable: boolean = false,
     rng: RNG = Math.random
   ): Promise<MonteCarloResults> {
     if (this.worker) {
@@ -62,10 +64,22 @@ export class SimulationController {
         simulationCount, 
         pipeline: pipelineSerialized,
         repeatRollConfig: repeatRollConfig || null,
-        repeatDiceConfig: repeatDiceConfig || null
+        repeatDiceConfig: repeatDiceConfig || null,
+        disarmed,
+        vulnerable
       });
     }
-    return await performMonteCarloSimulationWithPipeline(pool, facesByColor, simulationCount, pipeline, rng, repeatRollConfig, repeatDiceConfig);
+    return await performMonteCarloSimulationWithPipeline(
+      pool,
+      facesByColor,
+      simulationCount,
+      pipeline,
+      rng,
+      repeatRollConfig,
+      repeatDiceConfig,
+      disarmed,
+      vulnerable
+    );
   }
 
   async runCombatWithPipeline(
@@ -79,6 +93,8 @@ export class SimulationController {
     attackerRepeatDiceConfig?: RepeatDiceConfig | null,
     defenderRepeatRollConfig?: RepeatRollConfig | null,
     defenderRepeatDiceConfig?: RepeatDiceConfig | null,
+    attackerDisarmed: boolean = false,
+    defenderVulnerable: boolean = false,
     rng: RNG = Math.random
   ): Promise<CombatResults> {
     if (this.worker) {
@@ -95,7 +111,9 @@ export class SimulationController {
         attackerRepeatRollConfig: attackerRepeatRollConfig || null,
         attackerRepeatDiceConfig: attackerRepeatDiceConfig || null,
         defenderRepeatRollConfig: defenderRepeatRollConfig || null,
-        defenderRepeatDiceConfig: defenderRepeatDiceConfig || null
+        defenderRepeatDiceConfig: defenderRepeatDiceConfig || null,
+        attackerDisarmed,
+        defenderVulnerable
       });
     }
     return await performCombatSimulationWithPipeline(
@@ -109,7 +127,9 @@ export class SimulationController {
       attackerRepeatDiceConfig || null,
       defenderRepeatRollConfig || null,
       defenderRepeatDiceConfig || null,
-      rng
+      rng,
+      attackerDisarmed,
+      defenderVulnerable
     );
   }
 }

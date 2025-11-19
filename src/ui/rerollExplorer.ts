@@ -29,8 +29,8 @@ export function renderDieCard(
     onChange: (faceIndex: number) => void,
     onReroll: () => void
 ): string {
-    const face = faces[die.faceIndex];
-    const symbols = countSymbolsFromFace(face);
+    const face = faces[die.faceIndex] as readonly string[];
+    const symbols = countSymbolsFromFace(face as any);
     
     // Calculate expected value for the priority symbol type
     const { expectedCount, currentCount, symbolLabel } = getExpectedAndCurrentForPriority(
@@ -45,10 +45,10 @@ export function renderDieCard(
     
     // Create radio buttons for all 8 faces
     const faceRadios = faces.map((f, idx) => {
-        const faceSymbols = countSymbolsFromFace(f);
+        const faceSymbols = countSymbolsFromFace(f as any);
         const checked = idx === die.faceIndex ? 'checked' : '';
         return `
-            <label class="face-radio ${checked ? 'selected' : ''}">
+            <label class="face-radio ${checked ? 'selected' : ''}" data-die-id="${die.id}" data-face-index="${idx}">
                 <input type="radio" name="die-${die.id}-face" value="${idx}" ${checked}>
                 <span class="face-display">${renderFaceSymbols(faceSymbols)}</span>
             </label>
@@ -303,7 +303,7 @@ function getExpectedAndCurrentForPriority(
     // Calculate expected count for this die
     let expectedCount = 0;
     for (const face of faces) {
-        const symbols = countSymbolsFromFace(face);
+        const symbols = countSymbolsFromFace(face as any);
         let faceValue = 0;
         
         switch (priorityMode) {

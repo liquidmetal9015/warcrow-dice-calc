@@ -14,6 +14,8 @@ export interface CombatStateData {
   defenderPool: DicePool;
   attackerPipeline: Pipeline;
   defenderPipeline: Pipeline;
+  attackerDisarmed: boolean;
+  defenderVulnerable: boolean;
   attackerRepeatRollConfig: RepeatRollConfig;
   attackerRepeatDiceConfig: RepeatDiceConfig;
   defenderRepeatRollConfig: RepeatRollConfig;
@@ -30,6 +32,8 @@ export class CombatState extends TabState<CombatStateData> {
       defenderPool: { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 },
       attackerPipeline: new Pipeline([]),
       defenderPipeline: new Pipeline([]),
+      attackerDisarmed: false,
+      defenderVulnerable: false,
       attackerRepeatRollConfig: getDefaultRepeatRollConfig(),
       attackerRepeatDiceConfig: getDefaultRepeatDiceConfig(),
       defenderRepeatRollConfig: getDefaultRepeatRollConfig(),
@@ -71,6 +75,8 @@ export class CombatState extends TabState<CombatStateData> {
       defenderPool: { Red: 0, Orange: 0, Yellow: 0, Green: 0, Blue: 0, Black: 0 },
       attackerPipeline: new Pipeline([]),
       defenderPipeline: new Pipeline([]),
+      attackerDisarmed: false,
+      defenderVulnerable: false,
       attackerRepeatRollConfig: getDefaultRepeatRollConfig(),
       attackerRepeatDiceConfig: getDefaultRepeatDiceConfig(),
       defenderRepeatRollConfig: getDefaultRepeatRollConfig(),
@@ -136,6 +142,25 @@ export class CombatState extends TabState<CombatStateData> {
 
   updateDefenderRepeatDiceConfig(config: RepeatDiceConfig): void {
     this.updateState({ defenderRepeatDiceConfig: config, resultsOutdated: true });
+  }
+
+  // Combat states
+  isAttackerDisarmed(): boolean {
+    return this.state.attackerDisarmed;
+  }
+
+  setAttackerDisarmed(disarmed: boolean): void {
+    if (disarmed === this.state.attackerDisarmed) return;
+    this.updateState({ attackerDisarmed: disarmed, resultsOutdated: true });
+  }
+
+  isDefenderVulnerable(): boolean {
+    return this.state.defenderVulnerable;
+  }
+
+  setDefenderVulnerable(vulnerable: boolean): void {
+    if (vulnerable === this.state.defenderVulnerable) return;
+    this.updateState({ defenderVulnerable: vulnerable, resultsOutdated: true });
   }
 
   // Simulation state

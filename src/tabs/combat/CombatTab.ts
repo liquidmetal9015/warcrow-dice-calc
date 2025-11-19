@@ -91,6 +91,23 @@ export class CombatTab extends TabController {
       btn.addEventListener('click', (e) => this.handleDiceAdjust(e.target as HTMLElement));
     });
 
+    // State flags
+    const attackerDisarmedEl = this.container.querySelector('#attacker-disarmed') as HTMLInputElement | null;
+    if (attackerDisarmedEl) {
+      attackerDisarmedEl.addEventListener('change', () => {
+        this.state.setAttackerDisarmed(attackerDisarmedEl.checked);
+        this.scheduleSimulation();
+      });
+    }
+
+    const defenderVulnerableEl = this.container.querySelector('#defender-vulnerable') as HTMLInputElement | null;
+    if (defenderVulnerableEl) {
+      defenderVulnerableEl.addEventListener('change', () => {
+        this.state.setDefenderVulnerable(defenderVulnerableEl.checked);
+        this.scheduleSimulation();
+      });
+    }
+
     // Reset button
     const resetBtn = this.container.querySelector('#reset-combat');
     resetBtn?.addEventListener('click', () => this.handleReset());
@@ -154,6 +171,12 @@ export class CombatTab extends TabController {
 
     resetRerollUI('attacker');
     resetRerollUI('defender');
+
+    // Reset combat state flags
+    const attackerDisarmedEl = this.container.querySelector('#attacker-disarmed') as HTMLInputElement | null;
+    if (attackerDisarmedEl) attackerDisarmedEl.checked = false;
+    const defenderVulnerableEl = this.container.querySelector('#defender-vulnerable') as HTMLInputElement | null;
+    if (defenderVulnerableEl) defenderVulnerableEl.checked = false;
   }
 
   /**
@@ -200,7 +223,9 @@ export class CombatTab extends TabController {
         this.state.getAttackerRepeatRollConfig(),
         this.state.getAttackerRepeatDiceConfig(),
         this.state.getDefenderRepeatRollConfig(),
-        this.state.getDefenderRepeatDiceConfig()
+        this.state.getDefenderRepeatDiceConfig(),
+        this.state.isAttackerDisarmed(),
+        this.state.isDefenderVulnerable()
       );
 
       this.state.setResults(results);

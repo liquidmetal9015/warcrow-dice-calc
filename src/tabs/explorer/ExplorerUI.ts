@@ -130,6 +130,45 @@ export class ExplorerUI {
     }).join('');
 
     listEl.innerHTML = cardsHTML;
+    
+    // Attach event listeners after rendering
+    this.attachDieCardEventListeners();
+  }
+
+  /**
+   * Attach event listeners to die cards after rendering
+   */
+  private attachDieCardEventListeners(): void {
+    const listEl = this.container.querySelector('#explorer-dice-list') as HTMLElement;
+    if (!listEl) return;
+
+    // Face selection radio buttons
+    listEl.querySelectorAll('.face-radio').forEach(label => {
+      const radioInput = label.querySelector('input[type="radio"]') as HTMLInputElement;
+      if (!radioInput) return;
+
+      radioInput.addEventListener('change', () => {
+        const dieId = parseInt(label.getAttribute('data-die-id') || '0');
+        const faceIndex = parseInt(label.getAttribute('data-face-index') || '0');
+        
+        this.container.dispatchEvent(new CustomEvent('setDieFace', {
+          detail: { dieIndex: dieId, faceIndex },
+          bubbles: true
+        }));
+      });
+    });
+
+    // Reroll individual die buttons
+    listEl.querySelectorAll('.reroll-die-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dieId = parseInt(btn.getAttribute('data-die-id') || '0');
+        
+        this.container.dispatchEvent(new CustomEvent('rollDie', {
+          detail: { dieIndex: dieId },
+          bubbles: true
+        }));
+      });
+    });
   }
 
   /**

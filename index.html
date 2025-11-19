@@ -103,6 +103,17 @@
                     <div class="pool-actions">
                         <button class="btn btn--secondary" id="reset-pool">Reset Pool</button>
                     </div>
+
+                    <div class="analysis-state-flags" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px;">
+                        <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em;">
+                            <input type="checkbox" id="analysis-disarmed">
+                            <span>Disarmed (cancel die with the most filled hits; then specials)</span>
+                        </label>
+                        <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em;">
+                            <input type="checkbox" id="analysis-vulnerable">
+                            <span>Vulnerable (cancel die with the most filled blocks; then specials)</span>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Repeat Roll -->
@@ -385,6 +396,13 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="combat-state-flags">
+                                <label class="checkbox-label" style="margin-top: 8px; display: block;">
+                                    <input type="checkbox" id="attacker-disarmed">
+                                    <span>Disarmed (cancel die with the most filled hits; then specials)</span>
+                                </label>
+                            </div>
                             
                             <!-- Attacker Reroll Configuration -->
                             <details class="card" id="attacker-repeat-roll-section" style="margin-top: 12px;">
@@ -543,6 +561,13 @@
                                         <div class="dice-label">Yellow</div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="combat-state-flags">
+                                <label class="checkbox-label" style="margin-top: 8px; display: block;">
+                                    <input type="checkbox" id="defender-vulnerable">
+                                    <span>Vulnerable (cancel die with the most filled blocks; then specials)</span>
+                                </label>
                             </div>
                             
                             <!-- Defender Reroll Configuration -->

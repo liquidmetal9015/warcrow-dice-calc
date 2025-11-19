@@ -84,6 +84,23 @@ export class AnalysisTab extends TabController {
     const resetBtn = this.container.querySelector('#reset-pool');
     resetBtn?.addEventListener('click', () => this.handleReset());
 
+    // State flags
+    const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
+    if (disarmedEl) {
+      disarmedEl.addEventListener('change', () => {
+        this.state.setDisarmed(disarmedEl.checked);
+        this.scheduleSimulation();
+      });
+    }
+
+    const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
+    if (vulnerableEl) {
+      vulnerableEl.addEventListener('change', () => {
+        this.state.setVulnerable(vulnerableEl.checked);
+        this.scheduleSimulation();
+      });
+    }
+
     // Chart mode changes
     ['analysis-mode-hits', 'analysis-mode-blocks', 'analysis-mode-specials'].forEach(name => {
       this.container.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
@@ -150,6 +167,12 @@ export class AnalysisTab extends TabController {
       enableRepeatDice.checked = false;
       enableRepeatDice.dispatchEvent(new Event('change'));
     }
+
+    // Reset state flags
+    const disarmedEl = this.container.querySelector('#analysis-disarmed') as HTMLInputElement | null;
+    if (disarmedEl) disarmedEl.checked = false;
+    const vulnerableEl = this.container.querySelector('#analysis-vulnerable') as HTMLInputElement | null;
+    if (vulnerableEl) vulnerableEl.checked = false;
   }
 
   /**
@@ -199,7 +222,9 @@ export class AnalysisTab extends TabController {
         DEFAULT_SIMULATION_COUNT,
         this.state.getPipeline(),
         this.state.getRepeatRollConfig(),
-        this.state.getRepeatDiceConfig()
+        this.state.getRepeatDiceConfig(),
+        this.state.isDisarmed(),
+        this.state.isVulnerable()
       );
 
       this.state.setResults(results);

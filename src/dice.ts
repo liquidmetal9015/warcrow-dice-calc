@@ -177,7 +177,9 @@ export async function performMonteCarloSimulationWithPipeline(
   pipeline: { applyPost?: (state: { dice: unknown[]; rollDetails: unknown[]; aggregate: Aggregate }) => void },
   rng: RNG = Math.random,
   repeatRollConfig?: RepeatRollConfig | null,
-  repeatDiceConfig?: RepeatDiceConfig | null
+  repeatDiceConfig?: RepeatDiceConfig | null,
+  disarmed: boolean = false,
+  vulnerable: boolean = false
 ): Promise<MonteCarloResults> {
   return runAnalysis({
     pool,
@@ -187,7 +189,9 @@ export async function performMonteCarloSimulationWithPipeline(
     roll: simulateDiceRoll,
     transformAggregate: (pre) => applyPipelineToAggregate(pre, pipeline),
     repeatRollConfig: repeatRollConfig || null,
-    repeatDiceConfig: repeatDiceConfig || null
+    repeatDiceConfig: repeatDiceConfig || null,
+    disarmed,
+    vulnerable
   });
 }
 
@@ -228,7 +232,9 @@ export async function performCombatSimulationWithPipeline(
   attackerRepeatDiceConfig: RepeatDiceConfig | null = null,
   defenderRepeatRollConfig: RepeatRollConfig | null = null,
   defenderRepeatDiceConfig: RepeatDiceConfig | null = null,
-  rng: RNG = Math.random
+  rng: RNG = Math.random,
+  attackerDisarmed: boolean = false,
+  defenderVulnerable: boolean = false
 ): Promise<CombatResults> {
   return runCombat({
     attackerPool,
@@ -254,7 +260,9 @@ export async function performCombatSimulationWithPipeline(
     attackerRepeatRollConfig,
     attackerRepeatDiceConfig,
     defenderRepeatRollConfig,
-    defenderRepeatDiceConfig
+    defenderRepeatDiceConfig,
+    attackerDisarmed,
+    defenderVulnerable
   });
 }
 
@@ -482,70 +490,74 @@ export function getWeightsForPriorityMode(
 }
 
 /**
- * Simulate dice roll with both full and selective rerolls
- * Sequence: Initial roll → Full reroll (once if triggered) → Selective reroll (up to X dice)
+ * Internal helper to simulate a roll with optional full and selective rerolls.
+ * Returns detailed dice when needed so that higher-level effects (like states)
+ * can be applied on top.
  */
-export function simulateDiceRollWithRerolls(
+function rollWithRerollsInternal(
   pool: Pool,
   facesByColor: FacesByColor,
   repeatRollConfig: RepeatRollConfig | null,
   repeatDiceConfig: RepeatDiceConfig | null,
-  rng: RNG = Math.random
-): { aggregate: Aggregate; stats: RerollStats } {
+  rng: RNG,
+  forceDetailed: boolean
+): { dice: DieRoll[] | null; aggregate: Aggregate; stats: RerollStats } {
   let agg: Aggregate;
   let dice: DieRoll[] | null = null;
   let fullRerollsOccurred = 0;
   let diceRerolledCount = 0;
-  
-  // Determine if we need detailed tracking from the start
-  const needsDetailed = repeatDiceConfig?.enabled;
-  
+
+  const hasRepeatRoll = !!(repeatRollConfig && repeatRollConfig.enabled);
+  const hasRepeatDice = !!(repeatDiceConfig && repeatDiceConfig.enabled);
+  const needsDetailed = forceDetailed || hasRepeatDice;
+
   if (needsDetailed) {
     // Phase 1: Initial roll with detailed tracking
     let result = simulateDiceRollDetailed(pool, facesByColor, rng);
     dice = result.dice;
     agg = result.aggregate;
-    
+
     // Phase 2: Full reroll if enabled and condition met
-    if (repeatRollConfig?.enabled && shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
-      // Reroll the whole pool once with detailed tracking
+    if (hasRepeatRoll && repeatRollConfig && shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
       result = simulateDiceRollDetailed(pool, facesByColor, rng);
       dice = result.dice;
       agg = result.aggregate;
       fullRerollsOccurred = 1;
     }
-    
+
     // Phase 3: Selective reroll (repeat dice)
-    const weights = getWeightsForPriorityMode(repeatDiceConfig.priorityMode, repeatDiceConfig.countHollowAsFilled);
-    const toReroll = selectDiceToReroll(dice, repeatDiceConfig.maxDiceToReroll, weights, facesByColor);
-    
-    diceRerolledCount = toReroll.length;
-    
-    for (const idx of toReroll) {
-      const die = dice[idx];
-      if (!die) continue;
-      const faces = facesByColor[die.color];
-      if (!faces) continue;
-      
-      const newFaceIndex = Math.floor(rng() * 8);
-      const newFace = faces[newFaceIndex];
-      if (!newFace) continue;
-      const newSymbols = countSymbolsFromFace(newFace);
-      
-      dice[idx] = { color: die.color, faceIndex: newFaceIndex, symbols: newSymbols };
+    if (hasRepeatDice && repeatDiceConfig) {
+      const weights = getWeightsForPriorityMode(repeatDiceConfig.priorityMode, repeatDiceConfig.countHollowAsFilled);
+      const toReroll = selectDiceToReroll(dice, repeatDiceConfig.maxDiceToReroll, weights, facesByColor);
+
+      diceRerolledCount = toReroll.length;
+
+      for (const idx of toReroll) {
+        const die = dice[idx];
+        if (!die) continue;
+        const faces = facesByColor[die.color];
+        if (!faces) continue;
+
+        const newFaceIndex = Math.floor(rng() * 8);
+        const newFace = faces[newFaceIndex];
+        if (!newFace) continue;
+        const newSymbols = countSymbolsFromFace(newFace);
+
+        dice[idx] = { color: die.color, faceIndex: newFaceIndex, symbols: newSymbols };
+      }
+
+      // Re-aggregate after repeat dice
+      agg = blankAggregate();
+      for (const die of dice) {
+        agg.hits += die.symbols.hits;
+        agg.blocks += die.symbols.blocks;
+        agg.specials += die.symbols.specials;
+        agg.hollowHits += die.symbols.hollowHits;
+        agg.hollowBlocks += die.symbols.hollowBlocks;
+        agg.hollowSpecials += die.symbols.hollowSpecials;
+      }
     }
-    
-    // Re-aggregate after repeat dice
-    agg = blankAggregate();
-    for (const die of dice) {
-      agg.hits += die.symbols.hits;
-      agg.blocks += die.symbols.blocks;
-      agg.specials += die.symbols.specials;
-      agg.hollowHits += die.symbols.hollowHits;
-      agg.hollowBlocks += die.symbols.hollowBlocks;
-      agg.hollowSpecials += die.symbols.hollowSpecials;
-    }
-  } else if (repeatRollConfig?.enabled) {
+  } else if (hasRepeatRoll && repeatRollConfig) {
     // Only full reroll enabled (no detailed tracking needed)
     agg = simulateDiceRoll(pool, facesByColor, rng);
     if (shouldRerollAggregate(agg, repeatRollConfig.condition, pool, facesByColor)) {
@@ -556,8 +568,9 @@ export function simulateDiceRollWithRerolls(
     // No rerolls at all
     agg = simulateDiceRoll(pool, facesByColor, rng);
   }
-  
+
   return {
+    dice,
     aggregate: agg,
     stats: {
       fullRerollsOccurred,
@@ -565,6 +578,182 @@ export function simulateDiceRollWithRerolls(
       totalRolls: 1
     }
   };
+}
+
+/**
+ * Simulate dice roll with both full and selective rerolls
+ * Sequence: Initial roll → Full reroll (once if triggered) → Selective reroll (up to X dice)
+ */
+export function simulateDiceRollWithRerolls(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  repeatRollConfig: RepeatRollConfig | null,
+  repeatDiceConfig: RepeatDiceConfig | null,
+  rng: RNG = Math.random
+): { aggregate: Aggregate; stats: RerollStats } {
+  const { aggregate, stats } = rollWithRerollsInternal(
+    pool,
+    facesByColor,
+    repeatRollConfig,
+    repeatDiceConfig,
+    rng,
+    !!(repeatDiceConfig && repeatDiceConfig.enabled)
+  );
+  return { aggregate, stats };
+}
+
+// ============================================================================
+// Die cancellation policies (for Disarmed / Vulnerable and future extensions)
+// ============================================================================
+
+type SymbolMetric = keyof Aggregate;
+
+type ComparisonDirection = 'max' | 'min';
+
+interface DieCancellationCriterion {
+  symbol: SymbolMetric;
+  direction: ComparisonDirection;
+}
+
+interface DieCancellationPolicy {
+  criteria: DieCancellationCriterion[];
+  required?: { symbol: SymbolMetric; min: number };
+}
+
+function selectDieToCancel(dice: DieRoll[], policy: DieCancellationPolicy): number {
+  const candidates: Array<{ idx: number; die: DieRoll }> = [];
+
+  for (let idx = 0; idx < dice.length; idx++) {
+    const die = dice[idx];
+    if (!die) continue;
+    if (policy.required) {
+      const value = die.symbols[policy.required.symbol] || 0;
+      if (value < policy.required.min) continue;
+    }
+    candidates.push({ idx, die });
+  }
+
+  if (!candidates.length) return -1;
+
+  let bestIdx = candidates[0]!.idx;
+
+  for (let i = 1; i < candidates.length; i++) {
+    const candidate = candidates[i]!;
+    let isBetter = false;
+    const currentDie = dice[bestIdx]!;
+    const nextDie = candidate.die;
+
+    for (const criterion of policy.criteria) {
+      const aVal = nextDie.symbols[criterion.symbol] || 0;
+      const bVal = currentDie.symbols[criterion.symbol] || 0;
+      if (aVal === bVal) continue;
+
+      if (criterion.direction === 'max') {
+        if (aVal > bVal) isBetter = true;
+      } else {
+        if (aVal < bVal) isBetter = true;
+      }
+      // First differing criterion decides
+      break;
+    }
+
+    if (isBetter) {
+      bestIdx = candidate.idx;
+    }
+  }
+
+  return bestIdx;
+}
+
+const DISARMED_POLICY: DieCancellationPolicy = {
+  required: { symbol: 'hits', min: 1 },
+  criteria: [
+    { symbol: 'hits', direction: 'max' },
+    { symbol: 'specials', direction: 'max' }
+  ]
+};
+
+const VULNERABLE_POLICY: DieCancellationPolicy = {
+  required: { symbol: 'blocks', min: 1 },
+  criteria: [
+    { symbol: 'blocks', direction: 'max' },
+    { symbol: 'specials', direction: 'max' }
+  ]
+};
+
+/**
+ * Apply Disarmed: cancel the die with the most filled hits.
+ * Hollow symbols are ignored for the selection heuristic but still removed
+ * from the aggregate when that die is canceled.
+ */
+export function applyDisarmedToRoll(dice: DieRoll[], aggregate: Aggregate): void {
+  const bestIndex = selectDieToCancel(dice, DISARMED_POLICY);
+  if (bestIndex === -1) return;
+
+  const die = dice[bestIndex];
+  if (!die) return;
+
+  aggregate.hits = Math.max(0, (aggregate.hits || 0) - (die.symbols.hits || 0));
+  aggregate.blocks = Math.max(0, (aggregate.blocks || 0) - (die.symbols.blocks || 0));
+  aggregate.specials = Math.max(0, (aggregate.specials || 0) - (die.symbols.specials || 0));
+  aggregate.hollowHits = Math.max(0, (aggregate.hollowHits || 0) - (die.symbols.hollowHits || 0));
+  aggregate.hollowBlocks = Math.max(0, (aggregate.hollowBlocks || 0) - (die.symbols.hollowBlocks || 0));
+  aggregate.hollowSpecials = Math.max(0, (aggregate.hollowSpecials || 0) - (die.symbols.hollowSpecials || 0));
+
+  die.symbols = { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
+}
+
+/**
+ * Apply Vulnerable: cancel the die with the most filled blocks.
+ * Hollow symbols are ignored for the selection heuristic but still removed
+ * from the aggregate when that die is canceled.
+ */
+export function applyVulnerableToRoll(dice: DieRoll[], aggregate: Aggregate): void {
+  const bestIndex = selectDieToCancel(dice, VULNERABLE_POLICY);
+  if (bestIndex === -1) return;
+
+  const die = dice[bestIndex];
+  if (!die) return;
+
+  aggregate.hits = Math.max(0, (aggregate.hits || 0) - (die.symbols.hits || 0));
+  aggregate.blocks = Math.max(0, (aggregate.blocks || 0) - (die.symbols.blocks || 0));
+  aggregate.specials = Math.max(0, (aggregate.specials || 0) - (die.symbols.specials || 0));
+  aggregate.hollowHits = Math.max(0, (aggregate.hollowHits || 0) - (die.symbols.hollowHits || 0));
+  aggregate.hollowBlocks = Math.max(0, (aggregate.hollowBlocks || 0) - (die.symbols.hollowBlocks || 0));
+  aggregate.hollowSpecials = Math.max(0, (aggregate.hollowSpecials || 0) - (die.symbols.hollowSpecials || 0));
+
+  die.symbols = { hits: 0, blocks: 0, specials: 0, hollowHits: 0, hollowBlocks: 0, hollowSpecials: 0 };
+}
+
+/**
+ * Simulate dice roll with rerolls and apply Disarmed/Vulnerable state effects.
+ */
+export function simulateDiceRollWithRerollsAndStates(
+  pool: Pool,
+  facesByColor: FacesByColor,
+  repeatRollConfig: RepeatRollConfig | null,
+  repeatDiceConfig: RepeatDiceConfig | null,
+  options: { disarmed: boolean; vulnerable: boolean },
+  rng: RNG = Math.random
+): { aggregate: Aggregate; stats: RerollStats } {
+  const needsStates = !!(options.disarmed || options.vulnerable);
+  const { dice, aggregate, stats } = rollWithRerollsInternal(
+    pool,
+    facesByColor,
+    repeatRollConfig,
+    repeatDiceConfig,
+    rng,
+    needsStates
+  );
+
+  if (dice && options.disarmed) {
+    applyDisarmedToRoll(dice, aggregate);
+  }
+  if (dice && options.vulnerable) {
+    applyVulnerableToRoll(dice, aggregate);
+  }
+
+  return { aggregate, stats };
 }
 
 

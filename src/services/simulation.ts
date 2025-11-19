@@ -1,7 +1,7 @@
 import type { Aggregate, FacesByColor, Pool, RNG, MonteCarloResults, CombatResults, Distribution, JointDistribution } from '../dice';
 import { incJoint, normalizeDistribution, normalizeJoint } from '../utils/distribution';
 import type { RepeatRollConfig, RepeatDiceConfig, RerollStats } from '../types/reroll';
-import { simulateDiceRollWithRerolls } from '../dice';
+import { simulateDiceRollWithRerolls, simulateDiceRollWithRerollsAndStates } from '../dice';
 
 export type RollFn = (pool: Pool, facesByColor: FacesByColor, rng: RNG) => Aggregate;
 
@@ -14,10 +14,23 @@ export interface AnalysisRunOptions {
   transformAggregate?: (agg: Aggregate) => Aggregate;
   repeatRollConfig?: RepeatRollConfig | null;
   repeatDiceConfig?: RepeatDiceConfig | null;
+  disarmed?: boolean;
+  vulnerable?: boolean;
 }
 
 export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCarloResults> {
-  const { pool, facesByColor, simulationCount, roll, rng = Math.random, transformAggregate, repeatRollConfig, repeatDiceConfig } = options;
+  const {
+    pool,
+    facesByColor,
+    simulationCount,
+    roll,
+    rng = Math.random,
+    transformAggregate,
+    repeatRollConfig,
+    repeatDiceConfig,
+    disarmed = false,
+    vulnerable = false
+  } = options;
   const results: MonteCarloResults = {
     hits: {}, blocks: {}, specials: {}, hollowHits: {}, hollowBlocks: {}, hollowSpecials: {},
     totalHits: {}, totalBlocks: {}, totalSpecials: {},
@@ -30,17 +43,28 @@ export async function runAnalysis(options: AnalysisRunOptions): Promise<MonteCar
 
   // Use combined reroll function if either enabled
   const hasRerolls = repeatRollConfig?.enabled || repeatDiceConfig?.enabled;
+  const needsStates = disarmed || vulnerable;
 
   let sumSqHits = 0, sumSqBlocks = 0, sumSqSpecials = 0;
   for (let i = 0; i < simulationCount; i++) {
     let pre: Aggregate;
     
-    if (hasRerolls) {
-      const result = simulateDiceRollWithRerolls(pool, facesByColor, repeatRollConfig || null, repeatDiceConfig || null, rng);
+    if (hasRerolls || needsStates) {
+      const result = simulateDiceRollWithRerollsAndStates(
+        pool,
+        facesByColor,
+        repeatRollConfig || null,
+        repeatDiceConfig || null,
+        { disarmed, vulnerable },
+        rng
+      );
       pre = result.aggregate;
-      results.rerollStats!.fullRerollsOccurred += result.stats.fullRerollsOccurred;
-      results.rerollStats!.diceRerolledCount += result.stats.diceRerolledCount;
-      results.rerollStats!.totalRolls += 1;
+
+      if (hasRerolls) {
+        results.rerollStats!.fullRerollsOccurred += result.stats.fullRerollsOccurred;
+        results.rerollStats!.diceRerolledCount += result.stats.diceRerolledCount;
+        results.rerollStats!.totalRolls += 1;
+      }
     } else {
       pre = roll(pool, facesByColor, rng);
     }
@@ -133,13 +157,17 @@ export interface CombatRunOptions {
   attackerRepeatDiceConfig?: RepeatDiceConfig | null;
   defenderRepeatRollConfig?: RepeatRollConfig | null;
   defenderRepeatDiceConfig?: RepeatDiceConfig | null;
+  attackerDisarmed?: boolean;
+  defenderVulnerable?: boolean;
 }
 
 export async function runCombat(options: CombatRunOptions): Promise<CombatResults> {
   const { 
     attackerPool, defenderPool, facesByColor, simulationCount, roll, rng = Math.random, transforms,
     attackerRepeatRollConfig, attackerRepeatDiceConfig,
-    defenderRepeatRollConfig, defenderRepeatDiceConfig
+    defenderRepeatRollConfig, defenderRepeatDiceConfig,
+    attackerDisarmed = false,
+    defenderVulnerable = false
   } = options;
   const results: CombatResults = {
     woundsAttacker: {}, woundsDefender: {}, attackerSpecialsDist: {}, defenderSpecialsDist: {},
@@ -157,15 +185,29 @@ export async function runCombat(options: CombatRunOptions): Promise<CombatResult
     let preA: Aggregate;
     let preD: Aggregate;
     
-    if (attackerHasRerolls) {
-      const result = simulateDiceRollWithRerolls(attackerPool, facesByColor, attackerRepeatRollConfig || null, attackerRepeatDiceConfig || null, rng);
+    if (attackerHasRerolls || attackerDisarmed) {
+      const result = simulateDiceRollWithRerollsAndStates(
+        attackerPool,
+        facesByColor,
+        attackerRepeatRollConfig || null,
+        attackerRepeatDiceConfig || null,
+        { disarmed: attackerDisarmed, vulnerable: false },
+        rng
+      );
       preA = result.aggregate;
     } else {
       preA = roll(attackerPool, facesByColor, rng);
     }
     
-    if (defenderHasRerolls) {
-      const result = simulateDiceRollWithRerolls(defenderPool, facesByColor, defenderRepeatRollConfig || null, defenderRepeatDiceConfig || null, rng);
+    if (defenderHasRerolls || defenderVulnerable) {
+      const result = simulateDiceRollWithRerollsAndStates(
+        defenderPool,
+        facesByColor,
+        defenderRepeatRollConfig || null,
+        defenderRepeatDiceConfig || null,
+        { disarmed: false, vulnerable: defenderVulnerable },
+        rng
+      );
       preD = result.aggregate;
     } else {
       preD = roll(defenderPool, facesByColor, rng);

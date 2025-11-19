@@ -14,6 +14,8 @@ export interface AnalysisStateData {
   pipeline: Pipeline;
   repeatRollConfig: RepeatRollConfig;
   repeatDiceConfig: RepeatDiceConfig;
+  disarmed: boolean;
+  vulnerable: boolean;
   isSimulating: boolean;
   lastResults: MonteCarloResults | null;
   resultsOutdated: boolean;
@@ -26,6 +28,8 @@ export class AnalysisState extends TabState<AnalysisStateData> {
       pipeline: new Pipeline([]),
       repeatRollConfig: getDefaultRepeatRollConfig(),
       repeatDiceConfig: getDefaultRepeatDiceConfig(),
+      disarmed: false,
+      vulnerable: false,
       isSimulating: false,
       lastResults: null,
       resultsOutdated: false
@@ -57,6 +61,8 @@ export class AnalysisState extends TabState<AnalysisStateData> {
       pipeline: new Pipeline([]),
       repeatRollConfig: getDefaultRepeatRollConfig(),
       repeatDiceConfig: getDefaultRepeatDiceConfig(),
+      disarmed: false,
+      vulnerable: false,
       lastResults: null,
       resultsOutdated: false
     });
@@ -97,6 +103,31 @@ export class AnalysisState extends TabState<AnalysisStateData> {
   updateRepeatDiceConfig(config: RepeatDiceConfig): void {
     this.updateState({
       repeatDiceConfig: config,
+      resultsOutdated: true
+    });
+  }
+
+  // State flags
+  isDisarmed(): boolean {
+    return this.state.disarmed;
+  }
+
+  setDisarmed(disarmed: boolean): void {
+    if (disarmed === this.state.disarmed) return;
+    this.updateState({
+      disarmed,
+      resultsOutdated: true
+    });
+  }
+
+  isVulnerable(): boolean {
+    return this.state.vulnerable;
+  }
+
+  setVulnerable(vulnerable: boolean): void {
+    if (vulnerable === this.state.vulnerable) return;
+    this.updateState({
+      vulnerable,
       resultsOutdated: true
     });
   }

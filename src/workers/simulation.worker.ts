@@ -13,6 +13,8 @@ type AnalysisMsg = {
   pipeline?: SerializedPipelineStep[];
   repeatRollConfig?: RepeatRollConfig | null;
   repeatDiceConfig?: RepeatDiceConfig | null;
+  disarmed?: boolean;
+  vulnerable?: boolean;
 };
 type CombatMsg = { 
   type: 'combat'; 
@@ -26,6 +28,8 @@ type CombatMsg = {
   attackerRepeatDiceConfig?: RepeatDiceConfig | null;
   defenderRepeatRollConfig?: RepeatRollConfig | null;
   defenderRepeatDiceConfig?: RepeatDiceConfig | null;
+  attackerDisarmed?: boolean;
+  defenderVulnerable?: boolean;
 };
 type InMsg = AnalysisMsg | CombatMsg;
 
@@ -59,7 +63,9 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
           return state.aggregate as Aggregate;
         } : undefined,
         repeatRollConfig: msg.repeatRollConfig || null,
-        repeatDiceConfig: msg.repeatDiceConfig || null
+        repeatDiceConfig: msg.repeatDiceConfig || null,
+        disarmed: !!msg.disarmed,
+        vulnerable: !!msg.vulnerable
       });
       (self as any).postMessage({ requestId, ok: true, data: res });
       return;
@@ -95,7 +101,9 @@ self.onmessage = async (e: MessageEvent<InMsg & { requestId: string; seed?: numb
         attackerRepeatRollConfig: msg.attackerRepeatRollConfig || null,
         attackerRepeatDiceConfig: msg.attackerRepeatDiceConfig || null,
         defenderRepeatRollConfig: msg.defenderRepeatRollConfig || null,
-        defenderRepeatDiceConfig: msg.defenderRepeatDiceConfig || null
+        defenderRepeatDiceConfig: msg.defenderRepeatDiceConfig || null,
+        attackerDisarmed: !!msg.attackerDisarmed,
+        defenderVulnerable: !!msg.defenderVulnerable
       });
       (self as any).postMessage({ requestId, ok: true, data: res });
       return;

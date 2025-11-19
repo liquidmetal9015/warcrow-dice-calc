@@ -4,6 +4,8 @@
 
 This is a TypeScript/Vite web application that provides Monte Carlo simulation and probability analysis for the Warcrow tabletop game dice system. The app calculates roll probabilities, combat outcomes, and provides statistical visualizations using Chart.js and Plotly.
 
+**Architecture:** Modular, tab-based single-page application with clear separation of concerns, observable state management, and a shared service layer.
+
 ## Core Concepts
 
 ### Dice System
@@ -19,10 +21,11 @@ This is a TypeScript/Vite web application that provides Monte Carlo simulation a
 - Hollow symbols can be converted to filled symbols through game mechanics
 
 ### Core Features
-1. **Roll Calculator** - Single pool analysis with distributions
-2. **Face-to-Face Combat** - Two-sided combat simulation
-3. **Dice Reference** - Visual reference of all dice faces
-4. **Post-processing Pipelines** - Modify roll outcomes with steps like:
+1. **Analysis Tab** - Single dice pool analysis with distributions and charts
+2. **Combat Tab** - Face-to-Face combat simulation with attacker vs defender
+3. **Explorer Tab** - Manual dice rolling with reroll priority analysis
+4. **Faces Tab** - Visual reference of all dice faces
+5. **Post-processing Pipelines** - Modify roll outcomes with steps like:
    - `AddSymbols` - Add automatic symbols
    - `ElitePromotion` - Promote hollow to filled
    - `SwitchSymbols` - Exchange symbol types
@@ -35,7 +38,122 @@ This is a TypeScript/Vite web application that provides Monte Carlo simulation a
 - **Testing**: Vitest with coverage via @vitest/coverage-v8
 - **Visualization**: Chart.js 4.x, Plotly 2.x
 - **Runtime**: Node.js >=20.0.0
-- **No Framework**: Vanilla TypeScript with DOM manipulation
+- **Architecture**: Vanilla TypeScript with modular tab-based structure
+- **State Management**: Observable pattern with TabState base class
+- **No UI Framework**: Pure DOM manipulation with structured controllers
+
+## Architecture Overview
+
+### Tab-Based Architecture
+
+The application is organized around **four independent tabs**, each with its own controller, state, and UI:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                       app.ts                              │
+│                  (Entry Point - 18 lines)                 │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+┌─────────────────────────▼────────────────────────────────┐
+│                  AppController                            │
+│           (Tab Routing & Initialization)                  │
+└──────────┬──────────────┬──────────────┬─────────────────┘
+           │              │              │
+┌──────────▼──┐  ┌───────▼──────┐  ┌────▼───────┐ ┌──────┐
+│ Analysis Tab│  │ Combat Tab   │  │Explorer Tab│ │Faces │
+│             │  │              │  │            │ └──────┘
+│ ┌─────────┐ │  │ ┌─────────┐  │  │ ┌────────┐ │
+│ │  State  │ │  │ │  State  │  │  │ │ State  │ │
+│ └─────────┘ │  │ └─────────┘  │  │ └────────┘ │
+│             │  │              │  │            │
+│ ┌─────────┐ │  │ ┌─────────┐  │  │ ┌────────┐ │
+│ │   UI    │ │  │ │   UI    │  │  │ │   UI   │ │
+│ └─────────┘ │  │ └─────────┘  │  │ └────────┘ │
+└─────────────┘  └──────────────┘  └────────────┘
+       │                │                 │
+       └────────────────┼─────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│                  Shared Services                          │
+│  Storage │ Charts │ Icons │ Simulation │ DiceData        │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Core Principles
+
+1. **Tab Independence**: Each tab is self-contained with no cross-tab dependencies
+2. **Separation of Concerns**: Clear boundaries between UI, state, and business logic
+3. **Observable State**: Predictable state changes using the observer pattern
+4. **Service Layer**: Shared stateless services for common functionality
+5. **Dependency Injection**: Services injected into tab controllers for testability
+
+### Module Organization
+
+```
+src/
+├── app.ts                          (18 lines) ⭐ Entry point
+│
+├── core/                           # Application core
+│   ├── AppController.ts            (183 lines) - Tab routing & lifecycle
+│   ├── DiceData.ts                 (66 lines) - Centralized dice loading
+│   └── types.ts                    (29 lines) - Shared type definitions
+│
+├── services/                       # Shared stateless services
+│   ├── ChartService.ts             (267 lines) - Chart.js/Plotly management
+│   ├── IconService.ts              (88 lines) - Warcrow icon rendering
+│   ├── StorageService.ts           (63 lines) - localStorage operations
+│   └── simulation.ts               (existing) - Simulation orchestration
+│
+├── tabs/                           # Independent tab modules
+│   ├── base/                       # Base classes for all tabs
+│   │   ├── TabController.ts        (94 lines) - Lifecycle & coordination
+│   │   └── TabState.ts             (68 lines) - Observable state pattern
+│   │
+│   ├── analysis/                   # Analysis tab (~884 lines total)
+│   │   ├── AnalysisTab.ts          (287 lines) - Controller
+│   │   ├── AnalysisState.ts        (119 lines) - State management
+│   │   ├── AnalysisUI.ts           (172 lines) - UI rendering
+│   │   └── components/             # Tab-specific components
+│   │       ├── SymbolSummary.ts    (213 lines)
+│   │       ├── DistributionCharts.ts (165 lines)
+│   │       └── BivariateCharts.ts  (73 lines)
+│   │
+│   ├── combat/                     # Combat tab (~805 lines total)
+│   │   ├── CombatTab.ts            (254 lines) - Controller
+│   │   ├── CombatState.ts          (162 lines) - Attacker/defender state
+│   │   ├── CombatUI.ts             (103 lines) - UI rendering
+│   │   └── components/
+│   │       ├── CombatSummary.ts    (105 lines)
+│   │       └── CombatCharts.ts     (210 lines)
+│   │
+│   ├── explorer/                   # Explorer tab (~458 lines total)
+│   │   ├── ExplorerTab.ts          (143 lines) - Controller
+│   │   ├── ExplorerState.ts        (130 lines) - Dice state
+│   │   └── ExplorerUI.ts           (185 lines) - UI rendering
+│   │
+│   └── faces/                      # Faces tab (simple reference)
+│       └── FacesTab.ts             (113 lines) - Self-contained
+│
+├── ui/                             # Legacy UI components & integrations
+│   ├── pipelineEditor.ts           (existing) - Pipeline configuration UI
+│   ├── rerollEditor.ts             (existing) - Reroll configuration UI
+│   ├── rerollExplorer.ts           (existing) - Reroll analysis
+│   ├── pipelineEditorIntegration.ts (174 lines) - Bridge to new tabs
+│   └── rerollEditorIntegration.ts  (36 lines) - Bridge to new tabs
+│
+├── dice.ts                         # Core dice simulation logic
+├── pipeline.ts                     # Post-processing pipeline steps
+├── pipelineSerialization.ts        # Pipeline save/load
+├── constants.ts                    # App-wide constants
+│
+├── types/                          # Type definitions
+│   ├── reroll.ts                   - Reroll types
+│   └── state.ts                    - State types
+│
+├── utils/                          # Utility functions
+│
+└── workers/                        # Web Workers for heavy computation
+```
 
 ## Code Style & Standards
 
@@ -48,9 +166,10 @@ This is a TypeScript/Vite web application that provides Monte Carlo simulation a
 
 ### Naming Conventions
 - Types: PascalCase (e.g., `Aggregate`, `MonteCarloResults`)
-- Functions: camelCase (e.g., `simulateDiceRoll`, `normalizeColor`)
+- Classes: PascalCase (e.g., `AnalysisTab`, `ChartService`)
+- Functions/Methods: camelCase (e.g., `simulateDiceRoll`, `normalizeColor`)
 - Constants: UPPER_SNAKE_CASE for enums (e.g., `DS.HIT`)
-- Files: camelCase for modules (e.g., `dice.ts`, `pipelineSerialization.ts`)
+- Files: PascalCase for classes (e.g., `AnalysisTab.ts`), camelCase for utilities (e.g., `dice.ts`)
 
 ### Function Design
 - Keep functions pure when possible (e.g., simulation functions)
@@ -58,41 +177,307 @@ This is a TypeScript/Vite web application that provides Monte Carlo simulation a
 - Prefer small, focused functions with single responsibility
 - Document complex algorithms with comments
 
+### Class Design
+- Controllers coordinate between state and UI (thin layer)
+- State classes manage data and notify observers
+- UI classes render based on state (no business logic)
+- Services are stateless with single responsibility
+- Components are self-contained and reusable
+
 ### Immutability
 - Use `Object.freeze()` for constants
 - Use `readonly` for type properties
 - Avoid mutating input parameters
 - Return new objects/aggregates rather than modifying in-place
+- State getters return copies to prevent external mutation
 
-## Architecture
+## Working with the Tab Architecture
 
-### Module Organization
+### Tab Structure Pattern
+
+Every tab follows this consistent structure:
+
+#### 1. **TabController** (extends `TabController`)
+- **Responsibilities:**
+  - Coordinate between state and UI
+  - Handle user interactions
+  - Trigger simulations
+  - Manage lifecycle (initialize, activate, deactivate, dispose)
+- **Pattern:**
+  ```typescript
+  class ExampleTab extends TabController {
+    private state: ExampleState;
+    private ui: ExampleUI;
+    
+    protected async onInitialize(): Promise<void> {
+      // Setup state, UI, event listeners
+    }
+    
+    protected onActivate(): void {
+      // Tab becomes visible - refresh UI
+    }
+    
+    protected onDeactivate(): void {
+      // Tab becomes hidden - pause work
+    }
+    
+    protected onDispose(): void {
+      // Cleanup listeners, charts, etc.
+    }
+  }
+  ```
+
+#### 2. **TabState** (extends `TabState<T>`)
+- **Responsibilities:**
+  - Store tab-specific state
+  - Notify listeners of changes
+  - Provide immutable state access
+  - Validate state transitions
+- **Pattern:**
+  ```typescript
+  class ExampleState extends TabState<StateData> {
+    // Getters return copies (immutable access)
+    getPool(): DicePool { return {...this.state.pool}; }
+    
+    // Methods update and notify listeners
+    updatePool(pool: Partial<DicePool>): void {
+      this.updateState({ pool: { ...this.state.pool, ...pool } });
+      // Automatically notifies all listeners
+    }
+  }
+  ```
+
+#### 3. **TabUI** (plain class)
+- **Responsibilities:**
+  - Render UI based on state
+  - No business logic
+  - No state mutations
+  - Delegate to components for complex UI
+- **Pattern:**
+  ```typescript
+  class ExampleUI {
+    render(state: StateData): void {
+      // Pure rendering based on state
+    }
+    
+    showLoading(): void { /* Show loading skeleton */ }
+    showEmptyState(): void { /* Show empty message */ }
+    showResults(results: any): void { /* Render results */ }
+  }
+  ```
+
+#### 4. **Components** (plain classes)
+- **Responsibilities:**
+  - Render specific UI sections
+  - Self-contained and reusable
+  - Accept data, return nothing (render to DOM)
+- **Pattern:**
+  ```typescript
+  class SymbolSummary {
+    constructor(
+      private container: HTMLElement,
+      private iconService: IconService
+    ) {}
+    
+    render(results: MonteCarloResults): void {
+      // Render specific UI element
+    }
+  }
+  ```
+
+### Data Flow Pattern
+
 ```
-src/
-├── app.ts                    # Main application entry
-├── constants.ts              # App-wide constants
-├── dice.ts                   # Core dice logic & simulation
-├── pipeline.ts               # Post-processing steps
-├── pipelineSerialization.ts  # Pipeline save/load
-├── controllers/              # UI controllers
-├── services/                 # Simulation services
-├── types/                    # Type definitions
-├── ui/                       # UI components
-├── utils/                    # Utility functions
-└── workers/                  # Web Workers for heavy computation
+User Interaction
+    ↓
+Controller Method (e.g., handleButtonClick)
+    ↓
+State Update Method (e.g., state.updatePool)
+    ↓
+State.updateState() + notifyListeners()
+    ↓
+All Subscribed Listeners Called
+    ↓
+UI.render(newState)
+    ↓
+DOM Updated
 ```
 
-### Key Principles
-1. **Separation of Concerns**: Core logic (dice.ts) separate from UI
-2. **Testability**: Pure functions with dependency injection
-3. **Performance**: Use Web Workers for heavy Monte Carlo simulations
-4. **Type Safety**: Strict typing throughout, no `any` unless absolutely necessary
-5. **Data Validation**: Validate external data (dice faces JSON)
+### Service Usage Pattern
+
+Services are stateless and injected through SharedServices:
+
+```typescript
+// Services are passed to tab controllers
+interface SharedServices {
+  storage: StorageService;
+  charts: ChartService;
+  icons: IconService;
+  diceData: DiceData;
+  simulation: typeof simulationController;
+}
+
+// Usage in tab controllers
+class AnalysisTab extends TabController {
+  constructor(container: HTMLElement, services: SharedServices) {
+    super(container, services);
+    // Access services via this.services.storage, this.services.charts, etc.
+  }
+}
+```
+
+## Common Patterns
+
+### Creating a New Tab
+
+1. **Create directory structure:**
+   ```
+   src/tabs/mytab/
+     ├── MyTab.ts          # Controller
+     ├── MyTabState.ts     # State management (if needed)
+     └── MyTabUI.ts        # UI rendering (if needed)
+   ```
+
+2. **Implement TabController:**
+   ```typescript
+   export class MyTab extends TabController {
+     protected async onInitialize(): Promise<void> {
+       // Setup state, UI, event listeners
+     }
+   }
+   ```
+
+3. **Register in AppController:**
+   ```typescript
+   const myTabContainer = document.getElementById('mytab-tab');
+   this.tabs.set('mytab', new MyTab(myTabContainer, this.services));
+   ```
+
+### Adding a Feature to Existing Tab
+
+1. **Add state for the feature:**
+   ```typescript
+   // In AnalysisState.ts
+   export interface AnalysisStateData {
+     myNewFeature: boolean;
+   }
+   
+   setMyNewFeature(value: boolean): void {
+     this.updateState({ myNewFeature: value });
+   }
+   ```
+
+2. **Update UI to render the feature:**
+   ```typescript
+   // In AnalysisUI.ts
+   render(state: AnalysisStateData): void {
+     if (state.myNewFeature) {
+       // Render new feature UI
+     }
+   }
+   ```
+
+3. **Add interaction handling:**
+   ```typescript
+   // In AnalysisTab.ts
+   private bindEvents(): void {
+     document.getElementById('feature-btn')?.addEventListener('click', () => {
+       this.state.setMyNewFeature(true);
+     });
+   }
+   ```
+
+### Creating a New Service
+
+1. **Create service file:**
+   ```typescript
+   // src/services/MyService.ts
+   export class MyService {
+     doWork(input: string): string {
+       return input.toUpperCase();
+     }
+   }
+   
+   export const myService = new MyService();
+   ```
+
+2. **Add to SharedServices interface:**
+   ```typescript
+   // src/core/types.ts
+   export interface SharedServices {
+     myService: MyService;
+   }
+   ```
+
+3. **Initialize in AppController:**
+   ```typescript
+   this.services = {
+     myService: myService,
+     // ... other services
+   };
+   ```
+
+### Adding Pipeline Steps
+
+1. Define step type in pipeline types
+2. Implement step logic in `pipeline.ts`
+3. Add UI controls in HTML
+4. Update serialization in `pipelineSerialization.ts`
+5. Add tests for new step
+
+### Adding New Dice Colors
+
+1. Update `warcrow_dice_faces.json` with 8 faces
+2. Add to `normalizeColor()` if needed
+3. Update `isAttackColor()` if applicable
+4. Add UI controls and styling
 
 ## Testing
 
+### Unit Testing
+
+**Services:**
+```typescript
+test('StorageService saves and loads data', () => {
+  storageService.save('test', { value: 123 });
+  const loaded = storageService.load('test');
+  expect(loaded).toEqual({ value: 123 });
+});
+```
+
+**State:**
+```typescript
+test('AnalysisState updates pool correctly', () => {
+  const state = new AnalysisState();
+  state.setDiceCount('Red', 3);
+  expect(state.getPool().Red).toBe(3);
+});
+```
+
+**Components:**
+```typescript
+test('SymbolSummary renders correctly', () => {
+  const container = document.createElement('div');
+  const component = new SymbolSummary(container, iconService);
+  component.render(mockResults);
+  expect(container.innerHTML).toContain('Expected');
+});
+```
+
+### Integration Testing
+
+```typescript
+test('AnalysisTab initializes and renders', async () => {
+  const container = document.createElement('div');
+  const tab = new AnalysisTab(container, mockServices);
+  await tab.initialize();
+  tab.activate();
+  expect(container.querySelector('.symbol-summary')).toBeTruthy();
+});
+```
+
+### Testing Guidelines
 - Write tests for all core simulation logic
-- Use Vitest for unit tests
 - Mock RNG for deterministic testing
 - Test edge cases (empty pools, invalid colors, etc.)
 - Run tests: `npm test`
@@ -112,7 +497,8 @@ src/
 - Use typed arrays for performance-critical loops
 - Minimize allocations in hot paths (simulation loops)
 - Pre-allocate distribution objects
-- Consider Web Workers for simulations >50,000 iterations
+- Debounce simulation triggers (300ms)
+- Use Web Workers for simulations (handled by simulation service)
 
 ## UI Guidelines
 
@@ -120,7 +506,7 @@ src/
 - Use semantic HTML with ARIA labels for accessibility
 - Query selectors cached where appropriate
 - Event delegation for dynamic content
-- Update charts efficiently (destroy/recreate vs update)
+- Update charts efficiently (ensureChart pattern)
 
 ### Visual Design
 - Modern, clean interface
@@ -128,6 +514,34 @@ src/
 - Loading states with skeletons
 - Clear visual distinction between attack/defense dice
 - Use color consistently (matches dice colors)
+
+### State-Driven UI
+- All UI rendering based on state
+- No direct DOM state management
+- UI updates triggered by state changes
+- Loading/empty/results states clearly defined
+
+## Best Practices
+
+### DO ✅
+- Keep controllers thin - delegate to state and UI
+- Make state updates through dedicated methods
+- Return copies from state getters (immutability)
+- Use services for shared functionality
+- Keep components focused and reusable
+- Use TabState's subscribe/unsubscribe for state changes
+- Clean up listeners and charts in onDispose()
+- Test services and state classes independently
+
+### DON'T ❌
+- Don't mutate state directly
+- Don't share state between tabs
+- Don't put business logic in UI classes
+- Don't make services stateful
+- Don't create circular dependencies
+- Don't skip lifecycle methods (always call super)
+- Don't forget to unsubscribe from state changes
+- Don't access DOM elements before tab initialization
 
 ## Build & Deployment
 
@@ -141,31 +555,38 @@ src/
 - Preload critical assets (fonts, JSON data)
 - Use cache control headers appropriately
 
-## Common Patterns
-
-### Creating Aggregates
-```typescript
-const agg = blankAggregate();
-// Mutate locally, then return
-agg.hits += rolled.hits;
-return agg;
-```
-
-### Adding New Pipeline Steps
-1. Define step type in pipeline types
-2. Implement step logic in `pipeline.ts`
-3. Add UI controls in `index.html`
-4. Update serialization in `pipelineSerialization.ts`
-5. Add tests for new step
-
-### Adding New Dice Colors
-1. Update `warcrow_dice_faces.json` with 8 faces
-2. Add to `normalizeColor()` if needed
-3. Update `isAttackColor()` if applicable
-4. Add UI controls and styling
-
 ## Debugging
 
+### Available Debug Hooks
+```typescript
+// Global app instance
+window.__warcrowApp
+
+// Get specific tab
+const analysisTab = window.__warcrowApp.getTab('analysis');
+
+// Access services
+const { storage, charts, icons } = window.__warcrowApp.services;
+```
+
+### Common Issues
+
+**Tab not rendering?**
+- Check if tab is initialized: `tab.isTabInitialized()`
+- Check if tab is active: `tab.isTabActive()`
+- Check browser console for errors
+
+**State not updating?**
+- Verify state change method is called
+- Check if listeners are subscribed
+- Ensure updateState() is called (not direct mutation)
+
+**Simulation not running?**
+- Check dice pool count > 0
+- Verify diceData is loaded
+- Check simulation controller initialization
+
+### Debugging Tools
 - Use browser DevTools for debugging
 - Enable source maps (default in dev mode)
 - Check Network tab for failed asset loads
@@ -177,12 +598,12 @@ return agg;
 - `node_modules/` - managed by npm
 - `dist/` - build output
 - `coverage/` - test coverage output
-- `__pycache__/` - Python cache (if any scripts)
+- `public/warcrow_dice_faces.json` - dice definitions (unless adding new dice)
 
 ## External Dependencies
 
 - Minimize external dependencies
-- Use CDN for Chart.js and Plotly (already in HTML)
+- Use CDN for Chart.js and Plotly (in HTML)
 - Keep devDependencies lean
 - No runtime dependencies (pure vanilla TS)
 
@@ -197,16 +618,54 @@ return agg;
 
 When adding features:
 - Maintain backward compatibility with saved pipelines
+- Follow existing tab patterns for consistency
 - Add feature flags for experimental features
 - Document breaking changes clearly
 - Consider impact on simulation performance
 - Update tests and type definitions
+- Consider lazy-loading for new large tabs
+
+## Performance Optimizations
+
+### Current Optimizations
+- Debounced simulation triggers (300ms)
+- Chart updates instead of recreations (ensureChart pattern)
+- Web Worker for heavy simulations
+- Efficient state change notifications
+- Tab-based code organization enables future lazy loading
+
+### Future Opportunities
+- Lazy load tabs on first activation
+- Virtual scrolling for large lists
+- Memoized calculations in state
+- Code splitting by tab
+- Service worker for offline capability
 
 ## Important Notes
 
 - Always validate loaded dice face data (8 faces per die)
-- Cache `FacesByColor` after loading, don't reload unnecessarily
+- DiceData service caches faces after loading
 - Remember hollow vs filled distinction in all calculations
 - Combat simulation has different outcome metrics than single-pool analysis
-- Timestamps help users track simulation freshness
+- Tabs are independent - changes to one don't affect others
+- Services are shared but stateless
+- State must be updated through methods, never direct mutation
+- UI rendering is always triggered by state changes
+- Pipeline and reroll configurations are persisted via StorageService
 
+## Migration Notes
+
+This application was refactored from a monolithic 1338-line class to the current modular architecture in November 2025. Key improvements:
+
+- **80% reduction** in largest file size (1338 → 287 lines)
+- **Clear separation** of concerns (state, UI, business logic)
+- **Tab independence** - no cross-dependencies
+- **Testability** - services and state are easily unit tested
+- **Maintainability** - easy to understand and modify individual modules
+
+See `MIGRATION_GUIDE.md`, `ARCHITECTURE.md`, and `REFACTORING_SUMMARY.md` for detailed documentation.
+
+---
+
+**Last Updated:** November 9, 2025
+**Architecture Version:** 2.0.0 (Modular Tab-Based)
