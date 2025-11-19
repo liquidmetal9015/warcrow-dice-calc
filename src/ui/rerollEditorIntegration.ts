@@ -16,8 +16,7 @@ export function initializeRepeatRollUI(
   initialConfig: RepeatRollConfig,
   onChange: (config: RepeatRollConfig) => void
 ): void {
-  const prefix = scope === 'analysis' ? '' : scope;
-  initRepeatRollUI(containerId, initialConfig, onChange, prefix);
+  initRepeatRollUI(containerId, initialConfig, onChange, scope);
 }
 
 /**
@@ -29,7 +28,6 @@ export function initializeRepeatDiceUI(
   initialConfig: RepeatDiceConfig,
   onChange: (config: RepeatDiceConfig) => void
 ): void {
-  const prefix = scope === 'analysis' ? '' : scope;
-  initRepeatDiceUI(containerId, initialConfig, onChange, prefix);
+  initRepeatDiceUI(containerId, initialConfig, onChange, scope);
 }
 
